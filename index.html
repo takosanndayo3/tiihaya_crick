@@ -23,6 +23,10 @@ button{font:inherit;cursor:pointer}button:disabled{cursor:not-allowed;opacity:.4
 .item-info{flex:1;min-width:0}.item-info b{display:block;font-size:13px}.item-info small{display:block;font-size:11px;color:var(--muted);line-height:1.5}
 .item-action{border:0;border-radius:10px;padding:9px 11px;background:#26331e;color:#fff;font-size:11px;white-space:nowrap}.item-action:disabled{background:#dfe6d5;color:#7e8874}
 .item-timer{font-size:11px;color:#648c1c;font-weight:700}.item-shop-note{font-size:11px;color:var(--muted);line-height:1.6;margin:0 0 8px}
+.active-buffs{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 14px;padding:11px 13px;border:1px solid #d8edaa;border-radius:16px;background:linear-gradient(100deg,#f5ffdf,#fffbe4);box-shadow:0 5px 18px #789b2412}
+.active-buffs[hidden]{display:none}.active-buffs-title{font-size:11px;font-weight:800;color:#587b1c;white-space:nowrap}.active-buff-chip{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border-radius:99px;background:#fff;border:1px solid #e1edc9;color:#344522;font-size:12px;font-weight:700}.active-buff-chip .buff-time{font-variant-numeric:tabular-nums;color:#648c1c;font-size:11px}.active-buffs-empty{display:none}
+body[data-theme='night'] .active-buffs{background:linear-gradient(100deg,#303d68,#3d426c);border-color:#6574a8}body[data-theme='night'] .active-buffs-title,body[data-theme='night'] .active-buff-chip{color:#f4f6ff}body[data-theme='night'] .active-buff-chip{background:#252f55;border-color:#6574a8}body[data-theme='night'] .active-buff-chip .buff-time{color:#d5e99c}
+@media(max-width:780px){.active-buffs{gap:6px;padding:9px 10px}.active-buffs-title{width:100%}.active-buff-chip{font-size:11px;padding:6px 9px}}
 @media(max-width:780px){.app{padding:13px 11px 28px}.stats{grid-template-columns:repeat(2,1fr);gap:7px}.stat{padding:11px 12px}.main{grid-template-columns:1fr}.stage{min-height:490px}.hero{height:380px;width:90%}.side{display:grid;grid-template-columns:1fr}.panel{padding:14px}.bottom{align-items:flex-start;flex-direction:column}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
@@ -122,6 +126,7 @@ body { overflow:hidden; }
  <div class="stat"><label>クリック力</label><strong id="power">+1</strong><span>1クリックあたり</span></div>
  <div class="stat"><label>自動生産</label><strong id="cps">0 / 秒</strong><span>放置中も増えるよ</span></div>
 </section>
+<section class="active-buffs" id="activeBuffs" aria-live="polite" aria-label="使用中のアイテム" hidden></section>
 <main class="main">
  <section class="stage" id="stage"><div class="orb one"></div><div class="orb two"></div><div class="scene-label">🌱 きらめき広場</div><div class="click-note" id="clickNote">キャラクターをタップしてコインを集めよう！</div>
  <button class="hero" id="hero" aria-label="キャラクターをクリックしてコインを獲得"><img id="heroImg" style="pointer-events:none" alt="黄色い髪と緑の瞳のキャラクター"></button><div class="tap-hint">タップ / クリックでコイン獲得</div></section>
@@ -254,6 +259,13 @@ function renderBuffStatus(){
  const now=Date.now();
  return itemCatalog.map(item=>{const remaining=buffRemaining(item.id,now);return remaining>0?`<div class="listrow"><span>${item.icon} ${item.name}</span><span class="item-timer">残り ${formatDuration(remaining/1000)}</span></div>`:''}).filter(Boolean).join('');
 }
+function renderActiveBuffBanner(){
+ const el=$('activeBuffs');if(!el)return;
+ const active=itemCatalog.filter(item=>buffRemaining(item.id)>0);
+ if(!active.length){el.hidden=true;el.innerHTML='';return}
+ el.hidden=false;
+ el.innerHTML=`<span class="active-buffs-title">✨ アイテム効果 発動中！</span>${active.map(item=>`<span class="active-buff-chip">${item.icon} ${item.name}<span class="buff-time">${formatDuration(buffRemaining(item.id)/1000)}</span></span>`).join('')}`;
+}
 function renderThemes(){
  const el=$('themeList');if(!el)return;
  el.innerHTML=themes.map(t=>{
@@ -278,6 +290,7 @@ function chooseTheme(id,currency='coins'){
  render();save();
 }
 function render(){
+ renderActiveBuffBanner();
  $('coins').textContent=fmt(state.coins);$('gems').textContent=fmt(state.gems);
  $('power').textContent='+'+fmt(state.power*state.multiplier);$('cps').textContent=fmt(state.auto+state.bot*state.power*state.multiplier)+' / 秒';
  const plans={click:purchasePlan('click'),auto:purchasePlan('auto'),multi:purchasePlan('multi'),bot:purchasePlan('bot')};
