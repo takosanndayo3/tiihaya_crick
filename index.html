@@ -5,7 +5,14 @@
 <meta name="theme-color" content="#f4ffd9"><title>きらめきクリック！</title>
 <style>
 :root{--bg:#f7f9ef;--panel:#fff;--ink:#20291d;--muted:#75806c;--line:#e8eddc;--lime:#9be72b;--lime2:#eaffbb;--yellow:#fff27a;--shadow:0 12px 32px #32440f12}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -10%,#edffc7 0,transparent 44%),var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -10%,#edffc7 0,transparent 44%),var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;transition:background .45s ease,color .35s ease}
+body[data-theme='meadow']{background:radial-gradient(ellipse at 50% -10%,#edffc7 0,transparent 48%),linear-gradient(135deg,#f7f9ef,#eef8df)}
+body[data-theme='sakura']{background:radial-gradient(ellipse at 12% 12%,#ffd8e8 0,transparent 38%),radial-gradient(ellipse at 88% 85%,#ffe8f0 0,transparent 42%),linear-gradient(135deg,#fff4f8,#ffe6ef)}
+body[data-theme='ocean']{background:radial-gradient(ellipse at 12% 12%,#bfefff 0,transparent 40%),radial-gradient(ellipse at 88% 85%,#d7f6ff 0,transparent 42%),linear-gradient(135deg,#effcff,#d9f3ff)}
+body[data-theme='night']{background:radial-gradient(ellipse at 15% 15%,#56649b 0,transparent 38%),radial-gradient(ellipse at 85% 85%,#303b70 0,transparent 42%),linear-gradient(135deg,#171d3b,#252e59);color:#f5f6ff}
+body[data-theme='night'] .brand small,body[data-theme='night'] .stat label,body[data-theme='night'] .stat span{color:#68718f}
+body[data-theme='night'] .save{background:#343f70;color:#f3f5ff;border-color:#56639a}
+
 button{font:inherit;cursor:pointer}button:disabled{cursor:not-allowed;opacity:.45}
 .app{max-width:1180px;margin:auto;padding:20px 18px 40px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}.brand{display:flex;align-items:center;gap:11px}.logo{width:46px;height:46px;border-radius:16px;background:linear-gradient(135deg,#b7ff48,#fff58b);display:grid;place-items:center;font-size:25px;box-shadow:0 5px 16px #9be72b55}.brand h1{margin:0;font-size:21px}.brand small{color:var(--muted)}.save{font-size:12px;color:#5c742e;background:#f0f8df;border:1px solid #dcebbf;border-radius:99px;padding:8px 12px}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}.stat,.panel{background:var(--panel);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow)}.stat{padding:13px 16px}.stat label{font-size:11px;color:var(--muted)}.stat strong{display:block;font-size:clamp(20px,3vw,28px);margin-top:3px;font-variant-numeric:tabular-nums}.stat span{font-size:11px;color:var(--muted)}
@@ -234,7 +241,7 @@ function render(){
  $('multiDesc').textContent=`現在 ×${state.multiplier} · 次回さらに1.5倍`;
  $('botDesc').textContent=`現在 ${state.bot} 回 / 秒 · Lv.${state.bot} · 次回 +1回 / 秒`;
  $('heroImg').src=state.skin==='full'?IMG_FULL:IMG_CHIBI;
- $('stage').dataset.theme=state.theme;const selectedTheme=themes.find(t=>t.id===state.theme);$('stage').querySelector('.scene-label').textContent=selectedTheme?selectedTheme.icon+' '+selectedTheme.name:'🌱 きらめき広場';renderThemes();
+ document.body.dataset.theme=state.theme;$('stage').dataset.theme=state.theme;const selectedTheme=themes.find(t=>t.id===state.theme);$('stage').querySelector('.scene-label').textContent=selectedTheme?selectedTheme.icon+' '+selectedTheme.name:'🌱 きらめき広場';renderThemes();
  document.querySelectorAll('[data-buy-mode]').forEach(b=>{const active=b.dataset.buyMode===buyMode;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))});
  $('shopHelp').textContent=buyMode==='max'?'所持コインで購入できるだけまとめて強化します。':`${buyMode}回分の強化をまとめて購入します。足りない場合は購入できる回数までに調整します。`;
  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===activeTab));renderTab();
