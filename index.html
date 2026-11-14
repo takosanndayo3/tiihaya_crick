@@ -211,10 +211,14 @@ body { overflow:hidden; }
    <section data-feature-content="items" hidden>
     <p class="item-shop-note">アイテムは使うと一定時間だけ効果が続きます。同じ効果の使用中に再使用すると、残り時間に追加されます。</p>
     <div id="itemShop"></div>
+    <div class="inventory-section">
+     <h3>🎒 所持アイテム</h3>
+     <div id="itemInventory"></div>
+    </div>
     <p class="shop-help">購入したアイテムは「ミッション・実績」パネル内の「所持アイテム」タブから使用できます。</p>
    </section>
    <section data-feature-content="missions" hidden>
-    <div class="tabs"><button class="tab active" data-tab="missions">ミッション</button><button class="tab" data-tab="achievements">実績</button><button class="tab" data-tab="records">記録</button><button class="tab" data-tab="items">所持アイテム</button></div>
+    <div class="tabs"><button class="tab active" data-tab="missions">ミッション</button><button class="tab" data-tab="achievements">実績</button><button class="tab" data-tab="records">記録</button></div>
     <div class="tab-content" id="tabContent"></div>
    </section>
    <section data-feature-content="themes" hidden>
@@ -519,7 +523,7 @@ function render(){
  $('multiDesc').textContent=`現在 ×${state.multiplier} · 次回さらに1.5倍`;
  $('botDesc').textContent=`現在 ${state.bot} 回 / 秒 · Lv.${state.bot} · 次回 +1回 / 秒`;
  $('heroImg').src=state.skin==='full'?IMG_FULL:IMG_CHIBI;
- document.body.dataset.theme=state.theme;$('stage').dataset.theme=state.theme;const selectedTheme=themes.find(t=>t.id===state.theme);$('stage').querySelector('.scene-label').textContent=selectedTheme?selectedTheme.icon+' '+selectedTheme.name:'🌱 きらめき広場';renderThemes();renderItemShop();
+ document.body.dataset.theme=state.theme;$('stage').dataset.theme=state.theme;const selectedTheme=themes.find(t=>t.id===state.theme);$('stage').querySelector('.scene-label').textContent=selectedTheme?selectedTheme.icon+' '+selectedTheme.name:'🌱 きらめき広場';renderThemes();renderItemShop();renderInventory();
  document.querySelectorAll('[data-buy-mode]').forEach(b=>{const active=b.dataset.buyMode===buyMode;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))});
  $('shopHelp').textContent=buyMode==='max'?'所持コインで購入できるだけまとめて強化します。':`${buyMode}回分の強化をまとめて購入します。足りない場合は購入できる回数までに調整します。`;
  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===activeTab));renderTab();
