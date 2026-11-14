@@ -154,6 +154,18 @@ body { overflow:hidden; }
 .auth-dialog input{box-sizing:border-box;width:100%;min-width:0;padding:11px 12px;border:1px solid rgba(120,120,120,.35);border-radius:10px;font:inherit;background:rgba(255,255,255,.92);color:#222}
 .auth-dialog .auth-row{display:flex;gap:8px;margin:8px 0;flex-wrap:wrap}
 .auth-dialog .auth-row button{flex:1;min-height:40px}
+
+/* v0.5: friend system */
+.friend-toolbar{display:flex;gap:8px;align-items:center;margin:10px 0}
+.friend-toolbar input{flex:1;min-width:0;padding:11px 12px;border:1px solid var(--line);border-radius:11px;font:inherit;background:#fff;color:#20291d}
+.friend-toolbar button,.friend-action{border:0;border-radius:10px;padding:10px 12px;background:#26331e;color:#fff;font-size:12px;white-space:nowrap}
+.friend-section-title{font-size:13px;margin:16px 0 7px}
+.friend-card{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.friend-avatar{width:38px;height:38px;flex:none;border-radius:13px;background:#eff8df;display:grid;place-items:center;font-size:19px}
+.friend-meta{flex:1;min-width:0}.friend-meta b{display:block;font-size:12px;overflow-wrap:anywhere}.friend-meta small{display:block;color:var(--muted);font-size:10px;overflow-wrap:anywhere}
+.friend-actions{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}.friend-action.secondary{background:#edf3e4;color:#33412b}.friend-action.danger{background:#fff0ed;color:#9b4032}
+.friend-note{padding:10px 12px;border-radius:12px;background:#f7fbe9;color:var(--muted);font-size:11px;line-height:1.6;margin:8px 0}
+@media(max-width:520px){.friend-toolbar{align-items:stretch;flex-direction:column}.friend-actions{max-width:115px}}
 </style></head>
 <body><div class="app">
 <header class="top"><div class="brand"><div class="logo">✦</div><div><h1>きらめきクリック！</h1><small>きみのクリックで、世界を育てよう。</small></div></div><div><span class="save" id="saveState">● 保存準備中</span><button class="account-trigger" type="button" id="accountOpenBtn">👤 アカウント</button></div></header>
@@ -219,6 +231,7 @@ body { overflow:hidden; }
    <button type="button" class="feature-launch" data-open-panel="missions"><span>📜</span><b>ミッション</b><small>実績・記録も確認</small></button>
    <button type="button" class="feature-launch" data-open-panel="themes"><span>🎨</span><b>テーマ</b><small>広場を着せ替え</small></button>
    <button type="button" class="feature-launch" data-open-panel="gems"><span>💎</span><b>ジェム</b><small>購入機能は準備中</small></button>
+   <button type="button" class="feature-launch" data-open-panel="friends"><span>👥</span><b>フレンド</b><small>ID検索・申請・一覧</small></button>
   </section>
  </aside>
 </main>
@@ -244,6 +257,21 @@ body { overflow:hidden; }
    <section data-feature-content="themes" hidden>
     <p class="shop-help">広場の背景を着せ替えできます。コインまたはジェムで購入でき、購入後は何度でも変更できます。</p>
     <div class="theme-list" id="themeList"></div>
+   </section>
+   <section data-feature-content="friends" hidden>
+    <p class="friend-note" id="friendStatus">フレンド機能を利用するにはログインしてください。プレイヤーIDで検索できます。</p>
+    <div id="friendSignedOut" class="empty">アカウントにログインすると、フレンド申請や一覧を利用できます。</div>
+    <div id="friendSignedIn" hidden>
+     <h3 class="friend-section-title">🔎 プレイヤーを検索</h3>
+     <div class="friend-toolbar"><input id="friendSearchInput" type="text" maxlength="36" placeholder="プレイヤーIDを入力" aria-label="プレイヤーIDで検索"><button type="button" id="friendSearchBtn">検索</button></div>
+     <div id="friendSearchResults"></div>
+     <h3 class="friend-section-title">📨 届いたフレンド申請</h3>
+     <div id="friendIncoming"></div>
+     <h3 class="friend-section-title">⏳ 送信した申請</h3>
+     <div id="friendOutgoing"></div>
+     <h3 class="friend-section-title">💚 フレンド一覧</h3>
+     <div id="friendList"></div>
+    </div>
    </section>
    <section data-feature-content="gems" hidden>
     <div class="premium-note"><b>ジェムは購入で入手できます</b><p>ジェムはミッション・実績・ログインボーナスなどでは配布されません。購入機能は準備中です。このバージョンではまだ購入できません。</p><span class="premium-status">購入機能：準備中</span></div>
@@ -446,7 +474,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   clearTimeout(cloudWriteTimer);
   await supabaseClient.auth.signOut();
   currentUser=null;cloudSyncEnabled=false;cloudPreparingUserId=null;
-  updateAuthUI();authStatus('ログアウトしました。ゲームデータはこの端末に残っています。');
+  updateAuthUI();setFriendPanelAuthState();authStatus('ログアウトしました。ゲームデータはこの端末に残っています。');
   $('saveState').textContent='● 端末に保存済み';toast('ログアウトしました');
  };
  const hash=new URLSearchParams(window.location.hash.slice(1));
@@ -649,7 +677,92 @@ function buy(kind){
  state.coins-=plan.total;for(let i=0;i<plan.count;i++)apply();toast(`${kind==='click'?'クリック':kind==='auto'?'自動生産':kind==='multi'?'クリック倍率':'おまかせクリック'}を${plan.count}回強化！`);render();save();
 }
 $('hero').onclick=e=>{const n=addClick();const f=document.createElement('div');f.className='float';f.textContent='+'+fmt(n)+' 🪙';const r=$('stage').getBoundingClientRect();f.style.left=(e.clientX-r.left)+'px';f.style.top=(e.clientY-r.top)+'px';$('stage').appendChild(f);setTimeout(()=>f.remove(),850);$('hero').classList.remove('pop');void $('hero').offsetWidth;$('hero').classList.add('pop');render();save()};
-const featurePanelTitles={items:'🎁 アイテム',missions:'📜 ミッション・実績',themes:'🎨 テーマショップ',gems:'💎 ジェムショップ'};
+const featurePanelTitles={items:'🎁 アイテム',missions:'📜 ミッション・実績',themes:'🎨 テーマショップ',gems:'💎 ジェムショップ',friends:'👥 フレンド'};
+function escapeFriendText(value){
+ return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function friendProfileCard(profile,actions=''){
+ const name=escapeFriendText(profile?.player_name||'プレイヤー');
+ const id=escapeFriendText(profile?.player_id||'ID未設定');
+ return `<div class="friend-card"><div class="friend-avatar">👤</div><div class="friend-meta"><b>${name}</b><small>@${id}</small></div><div class="friend-actions">${actions}</div></div>`;
+}
+function friendPanelMessage(message){const el=$('friendStatus');if(el)el.textContent=message}
+function setFriendPanelAuthState(){
+ const signed=!!currentUser;
+ $('friendSignedOut').hidden=signed;
+ $('friendSignedIn').hidden=!signed;
+}
+async function loadFriendPanel(){
+ setFriendPanelAuthState();
+ if(!currentUser){friendPanelMessage('フレンド機能を利用するにはログインしてください。');return}
+ friendPanelMessage('フレンド情報を読み込み中…');
+ try{
+  const uid=currentUser.id;
+  const {data:rows,error}=await supabaseClient.from('friend_requests').select('id,sender_id,recipient_id,status,created_at').or(`sender_id.eq.${uid},recipient_id.eq.${uid}`).order('created_at',{ascending:false}).limit(200);
+  if(error)throw error;
+  const otherIds=[...new Set((rows||[]).map(r=>r.sender_id===uid?r.recipient_id:r.sender_id))];
+  let profiles=[];
+  if(otherIds.length){const result=await supabaseClient.from('player_profiles').select('user_id,player_name,player_id').in('user_id',otherIds);if(result.error)throw result.error;profiles=result.data||[];}
+  const byId=new Map(profiles.map(p=>[p.user_id,p]));
+  const incoming=(rows||[]).filter(r=>r.status==='pending'&&r.recipient_id===uid);
+  const outgoing=(rows||[]).filter(r=>r.status==='pending'&&r.sender_id===uid);
+  const friends=(rows||[]).filter(r=>r.status==='accepted');
+  $('friendIncoming').innerHTML=incoming.length?incoming.map(r=>friendProfileCard(byId.get(r.sender_id),`<button class="friend-action" data-friend-action="accept" data-request-id="${r.id}">承認</button><button class="friend-action secondary" data-friend-action="decline" data-request-id="${r.id}">拒否</button>`)).join(''):'<div class="empty">届いている申請はありません。</div>';
+  $('friendOutgoing').innerHTML=outgoing.length?outgoing.map(r=>friendProfileCard(byId.get(r.recipient_id),'<span class="badge">申請中</span>')).join(''):'<div class="empty">送信中の申請はありません。</div>';
+  $('friendList').innerHTML=friends.length?friends.map(r=>{const other=r.sender_id===uid?r.recipient_id:r.sender_id;return friendProfileCard(byId.get(other),`<button class="friend-action danger" data-friend-action="remove" data-request-id="${r.id}">解除</button>`)}).join(''):'<div class="empty">まだフレンドはいません。プレイヤーIDで検索して申請してみましょう。</div>';
+  friendPanelMessage(`フレンド ${friends.length}人・受信申請 ${incoming.length}件・送信申請 ${outgoing.length}件`);
+ }catch(e){console.error('フレンド情報の読み込み失敗',e);friendPanelMessage('フレンド情報を読み込めませんでした。SQL設定とログイン状態を確認してください。');}
+}
+async function searchFriendPlayers(){
+ if(!currentUser){friendPanelMessage('検索するにはログインしてください。');return}
+ const term=$('friendSearchInput').value.trim().toLowerCase();
+ const target=$('friendSearchResults');
+ if(!/^[a-z0-9_]{3,36}$/.test(term)){target.innerHTML='<div class="empty">プレイヤーIDを3～36文字で入力してください。</div>';return}
+ target.innerHTML='<div class="empty">検索中…</div>';
+ try{
+  const {data,error}=await supabaseClient.from('player_profiles').select('user_id,player_name,player_id').ilike('player_id',`%${term}%`).neq('user_id',currentUser.id).limit(20);
+  if(error)throw error;
+  if(!data?.length){target.innerHTML='<div class="empty">該当するプレイヤーはいません。</div>';return}
+  const {data:existing,error:existingError}=await supabaseClient.from('friend_requests').select('id,sender_id,recipient_id,status').or(`sender_id.eq.${currentUser.id},recipient_id.eq.${currentUser.id}`).in('status',['pending','accepted']);
+  if(existingError)throw existingError;
+  target.innerHTML=data.map(p=>{
+   const relation=(existing||[]).find(r=>(r.sender_id===p.user_id&&r.recipient_id===currentUser.id)||(r.sender_id===currentUser.id&&r.recipient_id===p.user_id));
+   let action=relation?(relation.status==='accepted'?'<span class="badge">フレンド</span>':`<span class="badge">${relation.sender_id===currentUser.id?'申請中':'申請が届いています'}</span>`):`<button class="friend-action" data-friend-action="send" data-player-id="${p.user_id}">申請する</button>`;
+   return friendProfileCard(p,action);
+  }).join('');
+ }catch(e){console.error('プレイヤー検索失敗',e);target.innerHTML='<div class="empty">検索に失敗しました。少し待ってから再度お試しください。</div>';}
+}
+async function sendFriendRequest(recipientId){
+ if(!currentUser||!recipientId||recipientId===currentUser.id)return;
+ try{
+  const {error}=await supabaseClient.from('friend_requests').insert({sender_id:currentUser.id,recipient_id:recipientId,status:'pending'});
+  if(error)throw error;
+  toast('フレンド申請を送信しました');await loadFriendPanel();await searchFriendPlayers();
+ }catch(e){console.error('申請送信失敗',e);friendPanelMessage(e.code==='23505'?'このプレイヤーには既に申請済み、またはフレンドです。':'申請を送信できませんでした。');}
+}
+async function respondFriendRequest(requestId,decision){
+ try{
+  const {error}=await supabaseClient.rpc('respond_friend_request',{p_request_id:requestId,p_decision:decision});
+  if(error)throw error;
+  toast(decision==='accepted'?'フレンドになりました！':'申請を拒否しました');await loadFriendPanel();
+ }catch(e){console.error('申請への応答失敗',e);friendPanelMessage('申請を処理できませんでした。もう一度読み込んでください。');}
+}
+async function removeFriendRequest(requestId){
+ if(!confirm('このフレンドを解除しますか？'))return;
+ try{
+  const {error}=await supabaseClient.rpc('remove_friend',{p_request_id:requestId});
+  if(error)throw error;
+  toast('フレンドを解除しました');await loadFriendPanel();
+ }catch(e){console.error('フレンド解除失敗',e);friendPanelMessage('フレンドを解除できませんでした。');}
+}
+function handleFriendAction(event){
+ const button=event.target.closest('[data-friend-action]');if(!button)return;
+ const action=button.dataset.friendAction;
+ if(action==='send')sendFriendRequest(button.dataset.playerId);
+ if(action==='accept'||action==='decline')respondFriendRequest(button.dataset.requestId,action==='accept'?'accepted':'declined');
+ if(action==='remove')removeFriendRequest(button.dataset.requestId);
+}
+
 function openFeaturePanel(name){
  const overlay=$('featureOverlay');
  if(!overlay||!featurePanelTitles[name])return;
@@ -659,11 +772,17 @@ function openFeaturePanel(name){
  if(name==='missions'){activeTab='missions';renderTab();document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===activeTab));}
  if(name==='items'){renderItemShop();renderInventory();}
  if(name==='themes')renderThemes();
+ if(name==='friends')loadFriendPanel();
 }
 function closeFeaturePanel(){const overlay=$('featureOverlay');if(overlay)overlay.hidden=true}
 document.addEventListener('click',e=>{const button=e.target.closest('[data-open-panel]');if(button){e.preventDefault();openFeaturePanel(button.dataset.openPanel)}});
 $('closeFeaturePanel').addEventListener('click',closeFeaturePanel);
 $('featureOverlay').addEventListener('click',e=>{if(e.target===$('featureOverlay'))closeFeaturePanel()});
+$('friendSearchBtn').addEventListener('click',searchFriendPlayers);
+$('friendSearchInput').addEventListener('keydown',e=>{if(e.key==='Enter')searchFriendPlayers()});
+$('friendSearchResults').addEventListener('click',handleFriendAction);
+$('friendIncoming').addEventListener('click',handleFriendAction);
+$('friendList').addEventListener('click',handleFriendAction);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('featureOverlay').hidden)closeFeaturePanel()});
 $('buyClick').onclick=()=>buy('click');$('buyAuto').onclick=()=>buy('auto');$('buyMulti').onclick=()=>buy('multi');$('buyBot').onclick=()=>buy('bot');document.querySelectorAll('[data-buy-mode]').forEach(b=>b.onclick=()=>{buyMode=b.dataset.buyMode;render()});
 document.querySelectorAll('[data-feature-content="missions"] [data-tab]').forEach(b=>b.onclick=()=>{activeTab=b.dataset.tab;renderTab();document.querySelectorAll('[data-feature-content="missions"] [data-tab]').forEach(x=>x.classList.toggle('active',x===b));save()});
