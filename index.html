@@ -290,7 +290,7 @@ body { overflow:hidden; }
      <div id="chatStatus" class="friend-note" role="status">チャットを読み込み中…</div>
      <div id="chatMessages" aria-live="polite" style="height:min(48dvh,420px);min-height:220px;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(255,255,255,.65)"></div>
      <div class="friend-toolbar" style="margin-top:10px">
-      <input id="chatInput" type="text" maxlength="500" placeholder="メッセージ（500文字以内）" aria-label="チャットメッセージ">
+      <textarea id="chatInput" maxlength="500" rows="2" placeholder="メッセージ（500文字以内）&#10;Enter：送信 ／ Shift+Enter：改行" aria-label="チャットメッセージ" style="flex:1;min-width:0;resize:vertical;padding:11px 12px;border:1px solid var(--line);border-radius:11px;font:inherit;background:#fff;color:#20291d"></textarea>
       <button type="button" id="chatSend">送信</button>
      </div>
      <div id="chatBlockList" class="friend-note"></div>
@@ -819,10 +819,10 @@ async function loadChatFriends(){
  }catch(e){console.error('チャット用フレンド取得失敗',e);chatStatus('フレンド一覧を取得できませんでした。')}
 }
 function currentChatQuery(){
- if(chatMode==='global')return supabaseClient.from('chat_messages').select('id,sender_id,recipient_id,message,created_at').is('recipient_id',null).order('created_at',{ascending:true}).limit(100);
+ if(chatMode==='global')return supabaseClient.from('chat_messages').select('id,sender_id,recipient_id,message,created_at,edited_at').is('recipient_id',null).order('created_at',{ascending:true}).limit(100);
  const friendId=$('chatFriendSelect').value;
  if(!friendId)return null;
- return supabaseClient.from('chat_messages').select('id,sender_id,recipient_id,message,created_at').or(`and(sender_id.eq.${currentUser.id},recipient_id.eq.${friendId}),and(sender_id.eq.${friendId},recipient_id.eq.${currentUser.id})`).order('created_at',{ascending:true}).limit(100);
+ return supabaseClient.from('chat_messages').select('id,sender_id,recipient_id,message,created_at,edited_at').or(`and(sender_id.eq.${currentUser.id},recipient_id.eq.${friendId}),and(sender_id.eq.${friendId},recipient_id.eq.${currentUser.id})`).order('created_at',{ascending:true}).limit(100);
 }
 async function loadChatMessages(){
  if(!currentUser)return;
@@ -838,7 +838,7 @@ async function loadChatMessages(){
   box.innerHTML=(data||[]).length?(data||[]).map(m=>{
    const p=byId.get(m.sender_id)||{},mine=m.sender_id===currentUser.id;
    const time=new Date(m.created_at).toLocaleString('ja-JP',{hour:'2-digit',minute:'2-digit'});
-   return `<div style="padding:7px 5px;border-bottom:1px solid var(--line);text-align:${mine?'right':'left'}"><b>${escapeChatText(p.player_name||'プレイヤー')}</b> <small style="color:var(--muted)">@${escapeChatText(p.player_id||'')}</small><div style="white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0">${escapeChatText(m.message)}</div><small style="color:var(--muted)">${time}</small>${mine?'':` <button type="button" class="friend-action secondary" data-chat-report="${m.id}">通報</button> <button type="button" class="friend-action danger" data-chat-block="${m.sender_id}">ブロック</button>`}</div>`;
+   return `<div style="padding:7px 5px;border-bottom:1px solid var(--line);text-align:${mine?'right':'left'}"><b>${escapeChatText(p.player_name||'プレイヤー')}</b> <small style="color:var(--muted)">@${escapeChatText(p.player_id||'')}</small><div style="white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0">${escapeChatText(m.message)}</div><small style="color:var(--muted)">${time}${m.edited_at?' · 編集済み':''}</small>${mine?` <div style="margin-top:5px"><button type="button" class="friend-action secondary" data-chat-edit="${m.id}">編集</button> <button type="button" class="friend-action danger" data-chat-delete="${m.id}">削除</button></div>`:` <button type="button" class="friend-action secondary" data-chat-report="${m.id}">通報</button> <button type="button" class="friend-action danger" data-chat-block="${m.sender_id}">ブロック</button>`}</div>`;
   }).join(''):'<div class="empty">まだメッセージはありません。最初のメッセージを送ってみましょう！</div>';
   box.scrollTop=box.scrollHeight;chatStatus(chatMode==='global'?'ログイン中のプレイヤーが参加できる全体チャットです。':'承認済みフレンドとの個別チャットです。');
  }catch(e){console.error('チャット読み込み失敗',e);chatStatus('チャットを読み込めません。SQL設定とログイン状態を確認してください。')}
@@ -856,6 +856,24 @@ async function sendChatMessage(){
   input.value='';await loadChatMessages();
  }catch(e){console.error('メッセージ送信失敗',e);chatStatus(e.message?.includes('wait')?'連投防止のため、少し待ってから送信してください。':'送信できませんでした。フレンド状態やSQL設定を確認してください。')}
  finally{button.disabled=false}
+}
+
+async function editChatMessage(messageId){
+ const {data:found,error:findError}=await supabaseClient.from('chat_messages').select('id,message,sender_id').eq('id',Number(messageId)).single();
+ if(findError||!found||found.sender_id!==currentUser.id){chatStatus('自分のメッセージだけ編集できます。');return}
+ const revised=prompt('メッセージを編集してください（500文字以内）',found.message);
+ if(revised===null)return;
+ const message=revised.trim();
+ if(!message||message.length>500){chatStatus('メッセージは1～500文字で入力してください。');return}
+ const {error}=await supabaseClient.from('chat_messages').update({message,edited_at:new Date().toISOString()}).eq('id',Number(messageId)).eq('sender_id',currentUser.id);
+ if(error){console.error('メッセージ編集失敗',error);chatStatus('編集できませんでした。SQLの更新ポリシーを確認してください。');return}
+ await loadChatMessages();toast('メッセージを編集しました');
+}
+async function deleteChatMessage(messageId){
+ if(!confirm('このメッセージを削除しますか？'))return;
+ const {error}=await supabaseClient.from('chat_messages').delete().eq('id',Number(messageId)).eq('sender_id',currentUser.id);
+ if(error){console.error('メッセージ削除失敗',error);chatStatus('削除できませんでした。SQLの削除ポリシーを確認してください。');return}
+ await loadChatMessages();toast('メッセージを削除しました');
 }
 function subscribeChatRealtime(){
  if(chatChannel){supabaseClient.removeChannel(chatChannel);chatChannel=null}
@@ -882,11 +900,13 @@ document.querySelectorAll('[data-chat-mode]').forEach(btn=>btn.addEventListener(
  await loadChatMessages();
 }));
 $('chatSend').addEventListener('click',sendChatMessage);
-$('chatInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChatMessage()}});
+$('chatInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();sendChatMessage()}});
 $('chatFriendSelect').addEventListener('change',loadChatMessages);
 $('chatMessages').addEventListener('click',e=>{
  const report=e.target.closest('[data-chat-report]');if(report)reportChatMessage(report.dataset.chatReport);
  const block=e.target.closest('[data-chat-block]');if(block)blockChatUser(block.dataset.chatBlock);
+ const edit=e.target.closest('[data-chat-edit]');if(edit)editChatMessage(edit.dataset.chatEdit);
+ const del=e.target.closest('[data-chat-delete]');if(del)deleteChatMessage(del.dataset.chatDelete);
 });
 
 function openFeaturePanel(name){
