@@ -215,7 +215,6 @@ body { overflow:hidden; }
      <h3>🎒 所持アイテム</h3>
      <div id="itemInventory"></div>
     </div>
-    <p class="shop-help">購入したアイテムは「ミッション・実績」パネル内の「所持アイテム」タブから使用できます。</p>
    </section>
    <section data-feature-content="missions" hidden>
     <div class="tabs"><button class="tab active" data-tab="missions">ミッション</button><button class="tab" data-tab="achievements">実績</button><button class="tab" data-tab="records">記録</button></div>
@@ -479,6 +478,21 @@ function renderBuffStatus(){
  const now=Date.now();
  return itemCatalog.map(item=>{const remaining=buffRemaining(item.id,now);return remaining>0?`<div class="listrow"><span>${item.icon} ${item.name}</span><span class="item-timer">残り ${formatDuration(remaining/1000)}</span></div>`:''}).filter(Boolean).join('');
 }
+function renderInventory(){
+ const el=$('itemInventory');
+ if(!el)return;
+ const owned=state.items&&typeof state.items==='object'?state.items:{};
+ const entries=itemCatalog.filter(item=>Number(owned[item.id]||0)>0);
+ const total=entries.reduce((sum,item)=>sum+Number(owned[item.id]||0),0);
+ const active=renderBuffStatus();
+ el.innerHTML=`
+  <div class="listrow"><span>所持アイテム数</span><b>${fmt(total)} 個</b></div>
+  <div class="listrow"><span>アイテムの種類</span><b>${fmt(entries.length)} 種類</b></div>
+  ${active?`<div class="listrow"><b>使用中の効果</b></div>${active}`:''}
+  ${entries.length?entries.map(item=>`<div class="item-card"><div class="item-icon">${item.icon}</div><div class="item-info"><b>${item.name}</b><small>${item.desc}</small><small>所持：${fmt(owned[item.id]||0)}個</small></div><button type="button" class="item-action" data-item-use="${item.id}">使う</button></div>`).join(''):'<div class="empty">アイテムはまだありません。上のアイテムショップで購入できます。</div>'}
+ `;
+ el.querySelectorAll('[data-item-use]').forEach(button=>button.addEventListener('click',()=>useItem(button.dataset.itemUse)));
+}
 function renderActiveBuffBanner(){
  const el=$('activeBuffs');if(!el)return;
  const active=itemCatalog.filter(item=>buffRemaining(item.id)>0);
@@ -536,19 +550,22 @@ function buy(kind){
 $('hero').onclick=e=>{const n=addClick();const f=document.createElement('div');f.className='float';f.textContent='+'+fmt(n)+' 🪙';const r=$('stage').getBoundingClientRect();f.style.left=(e.clientX-r.left)+'px';f.style.top=(e.clientY-r.top)+'px';$('stage').appendChild(f);setTimeout(()=>f.remove(),850);$('hero').classList.remove('pop');void $('hero').offsetWidth;$('hero').classList.add('pop');render();save()};
 const featurePanelTitles={items:'🎁 アイテム',missions:'📜 ミッション・実績',themes:'🎨 テーマショップ',gems:'💎 ジェムショップ'};
 function openFeaturePanel(name){
- const overlay=$('featureOverlay');if(!overlay||!featurePanelTitles[name])return;
- document.querySelectorAll('[data-feature-content]').forEach(el=>el.hidden=el.dataset.featureContent!==name);
- $('featurePanelTitle').textContent=featurePanelTitles[name];overlay.hidden=false;
- if(name==='missions'){activeTab='missions';renderTab();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===activeTab))}
- if(name==='items'){activeTab='items';renderTab()}
+ const overlay=$('featureOverlay');
+ if(!overlay||!featurePanelTitles[name])return;
+ document.querySelectorAll('[data-feature-content]').forEach(el=>{el.hidden=el.dataset.featureContent!==name});
+ $('featurePanelTitle').textContent=featurePanelTitles[name];
+ overlay.hidden=false;
+ if(name==='missions'){activeTab='missions';renderTab();document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===activeTab));}
+ if(name==='items'){renderItemShop();renderInventory();}
+ if(name==='themes')renderThemes();
 }
 function closeFeaturePanel(){const overlay=$('featureOverlay');if(overlay)overlay.hidden=true}
-document.querySelectorAll('[data-open-panel]').forEach(button=>button.addEventListener('click',()=>openFeaturePanel(button.dataset.openPanel)));
+document.addEventListener('click',e=>{const button=e.target.closest('[data-open-panel]');if(button){e.preventDefault();openFeaturePanel(button.dataset.openPanel)}});
 $('closeFeaturePanel').addEventListener('click',closeFeaturePanel);
 $('featureOverlay').addEventListener('click',e=>{if(e.target===$('featureOverlay'))closeFeaturePanel()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('featureOverlay').hidden)closeFeaturePanel()});
 $('buyClick').onclick=()=>buy('click');$('buyAuto').onclick=()=>buy('auto');$('buyMulti').onclick=()=>buy('multi');$('buyBot').onclick=()=>buy('bot');document.querySelectorAll('[data-buy-mode]').forEach(b=>b.onclick=()=>{buyMode=b.dataset.buyMode;render()});
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{activeTab=b.dataset.tab;render()});
+document.querySelectorAll('[data-feature-content="missions"] [data-tab]').forEach(b=>b.onclick=()=>{activeTab=b.dataset.tab;renderTab();document.querySelectorAll('[data-feature-content="missions"] [data-tab]').forEach(x=>x.classList.toggle('active',x===b));save()});
  $('themeList').onclick=e=>{const button=e.target.closest('[data-theme-id]');if(button&&!button.disabled)chooseTheme(button.dataset.themeId,button.dataset.themeCurrency||'coins')};
  $('itemShop').onclick=e=>{const button=e.target.closest('[data-item-buy]');if(button&&!button.disabled)buyItem(button.dataset.itemBuy)};
 $('reset').onclick=()=>{if(confirm('セーブデータをすべてリセットしますか？')){state=normalizeState({...initial,items:{},buffs:{},claimed:[],ownedThemes:['meadow']});save();render();toast('データをリセットしました')}};
