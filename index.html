@@ -337,8 +337,9 @@ body { overflow:hidden; }
 /* スマホ専用：固定フッターナビ */
 .mobile-bottom-nav{display:none}
 @media(max-width:780px){
+ #upgradeShop{scroll-margin-top:16px}
  .app{padding-bottom:calc(94px + env(safe-area-inset-bottom))}
- .mobile-bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:900;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:rgba(255,255,255,.94);border-top:1px solid rgba(120,140,100,.2);box-shadow:0 -8px 24px rgba(40,55,30,.09);backdrop-filter:blur(14px)}
+ .mobile-bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:900;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:rgba(255,255,255,.94);border-top:1px solid rgba(120,140,100,.2);box-shadow:0 -8px 24px rgba(40,55,30,.09);backdrop-filter:blur(14px)}
  .mobile-bottom-nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;min-height:54px;padding:5px 2px;border:0;border-radius:13px;background:transparent;color:#68745f;font:inherit;cursor:pointer;touch-action:manipulation}
  .mobile-bottom-nav button .nav-icon{font-size:22px;line-height:1.1}
  .mobile-bottom-nav button .nav-label{font-size:10px;font-weight:700;white-space:nowrap}
@@ -397,7 +398,7 @@ body { overflow:hidden; }
  <section class="stage" id="stage"><div class="orb one"></div><div class="orb two"></div><div class="scene-label">🌱 きらめき広場</div><div class="click-note" id="clickNote">キャラクターをタップしてコインを集めよう！</div>
  <button class="hero" id="hero" aria-label="キャラクターをクリックしてコインを獲得"><img id="heroImg" style="pointer-events:none" alt="黄色い髪と緑の瞳のキャラクター"></button><div class="tap-hint">タップ / クリックでコイン獲得</div></section>
  <aside class="side">
-  <section class="panel">
+  <section class="panel" id="upgradeShop">
    <div class="panel-head"><h2>⚡ 強化ショップ</h2><span class="muted">コインで購入</span></div>
    <div class="buy-mode" role="group" aria-label="購入数"><button type="button" data-buy-mode="1" class="active" aria-pressed="true">1回</button><button type="button" data-buy-mode="10" aria-pressed="false">10回</button><button type="button" data-buy-mode="max" aria-pressed="false">最大</button></div>
    <p class="shop-help" id="shopHelp">次の強化を1回購入します。購入数はいつでも変更できます。</p>
@@ -498,6 +499,7 @@ body { overflow:hidden; }
 </div>
 <nav class="mobile-bottom-nav" aria-label="メインナビゲーション">
  <button type="button" data-mobile-nav="home" aria-current="page"><span class="nav-icon" aria-hidden="true">🏠</span><span class="nav-label">ホーム</span></button>
+ <button type="button" data-mobile-nav="shop"><span class="nav-icon" aria-hidden="true">🛒</span><span class="nav-label">ショップ</span></button>
  <button type="button" data-mobile-nav="friends"><span class="nav-icon" aria-hidden="true">👥</span><span class="nav-label">フレンド</span></button>
  <button type="button" data-mobile-nav="chat"><span class="nav-icon" aria-hidden="true">💬</span><span class="nav-label">チャット</span></button>
  <button type="button" data-mobile-nav="ranking"><span class="nav-icon" aria-hidden="true">🏆</span><span class="nav-label">ランキング</span></button>
