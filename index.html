@@ -149,6 +149,11 @@ body { overflow:hidden; }
  .feature-dialog-content{padding:11px}
  .feature-launch{padding:10px}
 }
+
+.auth-dialog h3{margin:14px 0 8px;font-size:14px;color:var(--text,#333)}
+.auth-dialog input{box-sizing:border-box;width:100%;min-width:0;padding:11px 12px;border:1px solid rgba(120,120,120,.35);border-radius:10px;font:inherit;background:rgba(255,255,255,.92);color:#222}
+.auth-dialog .auth-row{display:flex;gap:8px;margin:8px 0;flex-wrap:wrap}
+.auth-dialog .auth-row button{flex:1;min-height:40px}
 </style></head>
 <body><div class="app">
 <header class="top"><div class="brand"><div class="logo">✦</div><div><h1>きらめきクリック！</h1><small>きみのクリックで、世界を育てよう。</small></div></div><div><span class="save" id="saveState">● 保存準備中</span><button class="account-trigger" type="button" id="accountOpenBtn">👤 アカウント</button></div></header>
@@ -158,18 +163,34 @@ body { overflow:hidden; }
   <h2 id="authModalTitle">👤 アカウント</h2>
   <p class="auth-status" id="authStatus">メールアドレスまたはDiscordでログインして、別の端末とセーブデータを共有できます。</p>
   <div id="authForm">
-   <div class="auth-row"><input id="authName" type="text" autocomplete="name" maxlength="40" placeholder="名前（新規登録時）" aria-label="名前"></div>
+   <h3>新規登録</h3>
+   <div class="auth-row"><input id="authName" type="text" autocomplete="name" maxlength="40" placeholder="プレイヤー名（1～40文字）" aria-label="プレイヤー名"></div>
+   <div class="auth-row"><input id="authPlayerId" type="text" autocomplete="username" maxlength="36" placeholder="プレイヤーID（英小文字・数字・_、3～36文字）" aria-label="プレイヤーID"></div>
    <div class="auth-row"><input id="authEmail" type="email" autocomplete="email" placeholder="メールアドレス" aria-label="メールアドレス"></div>
-   <div class="auth-row"><input id="authPassword" type="password" autocomplete="current-password" placeholder="パスワード（6文字以上）" aria-label="パスワード"></div>
-   <div class="auth-row"><button type="button" id="signUpBtn">メールで新規登録</button><button type="button" id="signInBtn" class="secondary">メールでログイン</button></div>
+   <div class="auth-row"><input id="authPassword" type="password" autocomplete="new-password" placeholder="パスワード（6文字以上）" aria-label="パスワード"></div>
+   <div class="auth-row"><button type="button" id="signUpBtn">メールで新規登録</button></div>
+   <div class="auth-divider">ログイン</div>
+   <div class="auth-row"><input id="authIdentity" type="text" autocomplete="username" placeholder="プレイヤーID または メールアドレス" aria-label="プレイヤーIDまたはメールアドレス"></div>
+   <div class="auth-row"><input id="authLoginPassword" type="password" autocomplete="current-password" placeholder="パスワード" aria-label="パスワード"></div>
+   <div class="auth-row"><button type="button" id="signInBtn" class="secondary">ログイン</button></div>
    <div class="auth-divider">または</div>
-   <div class="auth-row"><button type="button" id="discordSignInBtn" class="secondary">Discordで続ける</button></div>
-   <p class="auth-status">※ DiscordログインにはSupabase側でDiscordプロバイダーの設定が必要です。</p>
+   <div class="auth-row"><button type="button" id="discordSignInBtn" class="secondary">Discordで続ける（パスワード不要）</button></div>
+   <p class="auth-status">※ DiscordログインはDiscordの認証画面で本人確認します。</p>
   </div>
   <div id="authSignedIn" hidden>
    <p class="auth-status" id="authProfile"></p><p class="auth-id" id="authUserId"></p>
+   <h3>プロフィール編集</h3>
+   <div class="auth-row"><input id="editPlayerName" type="text" maxlength="40" placeholder="プレイヤー名"></div>
+   <div class="auth-row"><input id="editPlayerId" type="text" maxlength="36" placeholder="プレイヤーID（英小文字・数字・_）"></div>
+   <div class="auth-row"><button type="button" id="saveProfileBtn">プロフィールを保存</button></div>
+   <h3>メールアドレス・パスワード</h3>
+   <div class="auth-row"><input id="editEmail" type="email" autocomplete="email" placeholder="新しいメールアドレス"></div>
+   <div class="auth-row"><button type="button" id="changeEmailBtn" class="secondary">メールアドレスを変更</button></div>
+   <div class="auth-row"><input id="editPassword" type="password" autocomplete="new-password" placeholder="新しいパスワード（6文字以上）"></div>
+   <div class="auth-row"><button type="button" id="changePasswordBtn" class="secondary">パスワードを変更</button></div>
+   <p class="auth-status">DiscordアカウントはDiscord認証でログインできます。Discordログインにはゲーム内パスワードは不要です。</p>
    <div class="auth-row"><button type="button" id="signOutBtn" class="secondary">ログアウト</button></div>
-    <p class="auth-status">クラウド同期は自動で行われます。ゲームの変更はこの端末に保存されたあと、クラウドにも反映されます。</p>
+   <p class="auth-status">クラウド同期は自動で行われます。ゲームの変更はこの端末に保存されたあと、クラウドにも反映されます。</p>
   </div>
  </div>
 </section>
@@ -240,16 +261,47 @@ const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHA
 let currentUser=null,cloudSyncEnabled=false,cloudWriteTimer=null,authBusy=false;
 let cloudPreparingUserId=null,cloudSaveInFlight=false,cloudSaveQueued=false;
 const authStatus=(message)=>{const el=document.getElementById('authStatus');if(el)el.textContent=message};
+let currentProfile=null;
 function updateAuthUI(){
  const form=document.getElementById('authForm'),signed=document.getElementById('authSignedIn');
  if(!form||!signed)return;
  form.hidden=!!currentUser;signed.hidden=!currentUser;
  if(currentUser){
-  const meta=currentUser.user_metadata||{};
-  document.getElementById('authProfile').textContent=`ログイン中：${meta.full_name||meta.name||currentUser.email||'Discordアカウント'}`;
-  document.getElementById('authUserId').textContent=`ユーザーID：${currentUser.id}`;
-  authStatus('アカウントに接続しました。クラウドデータを確認しています…');
+  document.getElementById('authProfile').textContent=`ログイン中：${currentProfile?.player_name||currentUser.user_metadata?.full_name||currentUser.email||'Discordアカウント'}`;
+  document.getElementById('authUserId').textContent=`プレイヤーID：${currentProfile?.player_id||'読み込み中'} ／ 認証ユーザーID：${currentUser.id}`;
+  if(currentProfile){
+   document.getElementById('editPlayerName').value=currentProfile.player_name||'';
+   document.getElementById('editPlayerId').value=currentProfile.player_id||'';
+   document.getElementById('editEmail').value=currentUser.email||'';
+  }
  }
+}
+async function loadPlayerProfile(user){
+ if(!user?.id)return null;
+ const {data,error}=await supabaseClient.from('player_profiles').select('user_id,player_name,player_id').eq('user_id',user.id).single();
+ if(error)throw error;
+ currentProfile=data;updateAuthUI();return data;
+}
+async function savePlayerProfile(){
+ if(!currentUser)return;
+ const player_name=document.getElementById('editPlayerName').value.trim();
+ const player_id=document.getElementById('editPlayerId').value.trim().toLowerCase();
+ if(player_name.length<1||player_name.length>40){authStatus('プレイヤー名は1～40文字で入力してください');return}
+ if(!/^[a-z0-9_]{3,36}$/.test(player_id)){authStatus('プレイヤーIDは英小文字・数字・_のみ、3～36文字で入力してください');return}
+ const {data,error}=await supabaseClient.from('player_profiles').update({player_name,player_id,updated_at:new Date().toISOString()}).eq('user_id',currentUser.id).select('user_id,player_name,player_id').single();
+ if(error){authStatus(error.code==='23505'?'そのプレイヤーIDは既に使われています。別のIDを入力してください。':'プロフィールを保存できませんでした：'+error.message);return}
+ currentProfile=data;updateAuthUI();authStatus('プロフィールを保存しました');toast('プロフィールを更新しました');
+}
+async function updateAuthProfileAfterLogin(user){
+ try{
+  let profile=await loadPlayerProfile(user);
+  const desiredId=(user.user_metadata?.player_id||'').toLowerCase();
+  const desiredName=user.user_metadata?.full_name||user.user_metadata?.name||'';
+  if(desiredId&&/^([a-z0-9_]{3,36})$/.test(desiredId)&&(profile.player_id||'').startsWith('p_')){
+   const {data,error}=await supabaseClient.from('player_profiles').update({player_id:desiredId,player_name:desiredName||profile.player_name,updated_at:new Date().toISOString()}).eq('user_id',user.id).select('user_id,player_name,player_id').single();
+   if(!error){currentProfile=data;updateAuthUI()}
+  }
+ }catch(e){console.error('プロフィール読み込み失敗',e);authStatus('ログインしましたがプロフィールを読み込めません。player_profilesのRLSとテーブルを確認してください。')}
 }
 function queueCloudSave(){
  if(!currentUser||!cloudSyncEnabled)return;
@@ -294,7 +346,7 @@ async function prepareCloudForUser(user){
  if(!user?.id)return;
  if(cloudPreparingUserId===user.id)return;
  cloudPreparingUserId=user.id;
- currentUser=user;cloudSyncEnabled=false;updateAuthUI();
+ currentUser=user;cloudSyncEnabled=false;updateAuthUI();updateAuthProfileAfterLogin(user);
  try{
   const {data,error}=await supabaseClient.from('game_saves')
    .select('save_data').eq('user_id',user.id).maybeSingle();
@@ -329,7 +381,53 @@ async function prepareCloudForUser(user){
   if(cloudPreparingUserId===user.id)cloudPreparingUserId=null;
  }
 }
-async function handleAuth(action){if(authBusy)return;const email=document.getElementById('authEmail').value.trim(),password=document.getElementById('authPassword').value,name=document.getElementById('authName').value.trim();if(!email||!password){authStatus('メールアドレスとパスワードを入力してください');return}if(password.length<6){authStatus('パスワードは6文字以上にしてください');return}if(action==='signup'&&!name){authStatus('新規登録では名前を入力してください');return}authBusy=true;try{const redirectTo=window.location.origin+window.location.pathname;let result;if(action==='signup')result=await supabaseClient.auth.signUp({email,password,options:{data:{full_name:name,name},emailRedirectTo:redirectTo}});else result=await supabaseClient.auth.signInWithPassword({email,password});if(result.error)throw result.error;if(action==='signup'&&!result.data.session){authStatus('確認メールを送信しました。新しいメールのリンクを開いてください。リンクの有効期限が切れた場合は再登録ではなく、同じメールアドレスで確認メールを再送してください。');toast('確認メールを確認してください')}else if(result.data.user){await prepareCloudForUser(result.data.user);toast(action==='signup'?'アカウントを作成しました':'ログインしました')}}catch(e){console.error(e);authStatus('認証エラー：'+(e.message||'入力内容を確認してください'));toast('認証に失敗しました')}finally{authBusy=false}}
+async function handleAuth(action){
+ if(authBusy)return;
+ const email=document.getElementById('authEmail').value.trim();
+ const password=document.getElementById('authPassword').value;
+ const name=document.getElementById('authName').value.trim();
+ const playerId=document.getElementById('authPlayerId').value.trim().toLowerCase();
+ if(!email||!password){authStatus('メールアドレスとパスワードを入力してください');return}
+ if(password.length<6){authStatus('パスワードは6文字以上にしてください');return}
+ if(action==='signup'&&!name){authStatus('新規登録ではプレイヤー名を入力してください');return}
+ if(action==='signup'&&!/^[a-z0-9_]{3,36}$/.test(playerId)){authStatus('プレイヤーIDは英小文字・数字・_のみ、3～36文字で入力してください');return}
+ authBusy=true;
+ try{
+  const redirectTo=window.location.origin+window.location.pathname;
+  let result;
+  if(action==='signup')result=await supabaseClient.auth.signUp({email,password,options:{data:{full_name:name,name,player_id:playerId},emailRedirectTo:redirectTo}});
+  else result=await supabaseClient.auth.signInWithPassword({email,password});
+  if(result.error)throw result.error;
+  if(action==='signup'&&!result.data.session){authStatus('確認メールを送信しました。メール認証後、同じメールアドレスでログインしてください。プレイヤーIDは登録時の入力値からプロフィールへ反映します。');toast('確認メールを確認してください')}
+  else if(result.data.user){await prepareCloudForUser(result.data.user);toast(action==='signup'?'アカウントを作成しました':'ログインしました')}
+ }catch(e){console.error(e);authStatus('認証エラー：'+(e.code==='23505'?'そのプレイヤーIDは既に使われています。':(e.message||'入力内容を確認してください')));toast('認証に失敗しました')}
+ finally{authBusy=false}
+}
+async function loginByIdentity(){
+ if(authBusy)return;
+ const identity=document.getElementById('authIdentity').value.trim();
+ const password=document.getElementById('authLoginPassword').value;
+ if(!identity||!password){authStatus('プレイヤーIDまたはメールアドレスとパスワードを入力してください');return}
+ authBusy=true;
+ try{
+  let result;
+  if(identity.includes('@')) result=await supabaseClient.auth.signInWithPassword({email:identity,password});
+  else {
+   const {data,error}=await supabaseClient.functions.invoke('login-by-player-id',{body:{player_id:identity.toLowerCase(),password}});
+   if(error)throw error;
+   if(!data?.session)throw new Error('ログインできませんでした。IDまたはパスワードを確認してください。');
+   const {data:sessionData,error:sessionError}=await supabaseClient.auth.setSession(data.session);
+   if(sessionError)throw sessionError;
+   result={data:sessionData,error:null};
+  }
+  if(result.error)throw result.error;
+  if(result.data?.user){await prepareCloudForUser(result.data.user);toast('ログインしました')}
+ }catch(e){console.error(e);authStatus('ログインできませんでした。ID/メールアドレスとパスワードを確認してください。プレイヤーIDログイン機能はEdge Functionの設定も必要です。')}
+ finally{authBusy=false}
+}
+async function changeAccountEmail(){const email=document.getElementById('editEmail').value.trim();if(!email){authStatus('新しいメールアドレスを入力してください');return}const {error}=await supabaseClient.auth.updateUser({email});if(error){authStatus('メールアドレスを変更できませんでした：'+error.message);return}authStatus('確認メールを送信しました。新しいメール内のリンクを開いて変更を完了してください。')}
+async function changeAccountPassword(){const password=document.getElementById('editPassword').value;if(password.length<6){authStatus('新しいパスワードは6文字以上にしてください');return}const {error}=await supabaseClient.auth.updateUser({password});if(error){authStatus('パスワードを変更できませんでした：'+error.message);return}document.getElementById('editPassword').value='';authStatus('パスワードを変更しました')}
+
 async function resendConfirmation(){const email=document.getElementById('authEmail').value.trim();if(!email){authStatus('確認メールを再送するメールアドレスを入力してください');return}try{const {error}=await supabaseClient.auth.resend({type:'signup',email,options:{emailRedirectTo:window.location.origin+window.location.pathname}});if(error)throw error;authStatus('確認メールを再送しました。最新のメールにあるリンクを使ってください。')}catch(e){authStatus('再送できませんでした：'+e.message)}}
 async function discordLogin(){try{const {error}=await supabaseClient.auth.signInWithOAuth({provider:'discord',options:{redirectTo:window.location.origin+window.location.pathname,scopes:'identify email'}});if(error)throw error}catch(e){authStatus('Discordログインを開始できません：'+e.message+'。SupabaseのDiscordプロバイダー設定を確認してください。')}}
 document.addEventListener('DOMContentLoaded',()=>{
@@ -339,7 +437,10 @@ document.addEventListener('DOMContentLoaded',()=>{
  modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.remove('open')});
  document.addEventListener('keydown',e=>{if(e.key==='Escape')modal.classList.remove('open')});
  document.getElementById('signUpBtn').onclick=()=>handleAuth('signup');
- document.getElementById('signInBtn').onclick=()=>handleAuth('signin');
+ document.getElementById('signInBtn').onclick=loginByIdentity;
+ document.getElementById('saveProfileBtn').onclick=savePlayerProfile;
+ document.getElementById('changeEmailBtn').onclick=changeAccountEmail;
+ document.getElementById('changePasswordBtn').onclick=changeAccountPassword;
  document.getElementById('discordSignInBtn').onclick=discordLogin;
  document.getElementById('signOutBtn').onclick=async()=>{
   clearTimeout(cloudWriteTimer);
