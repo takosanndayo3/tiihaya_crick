@@ -333,6 +333,19 @@ body { overflow:hidden; }
   }
 }
 
+
+/* スマホ専用：固定フッターナビ */
+.mobile-bottom-nav{display:none}
+@media(max-width:780px){
+ .app{padding-bottom:calc(94px + env(safe-area-inset-bottom))}
+ .mobile-bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:900;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:rgba(255,255,255,.94);border-top:1px solid rgba(120,140,100,.2);box-shadow:0 -8px 24px rgba(40,55,30,.09);backdrop-filter:blur(14px)}
+ .mobile-bottom-nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;min-height:54px;padding:5px 2px;border:0;border-radius:13px;background:transparent;color:#68745f;font:inherit;cursor:pointer;touch-action:manipulation}
+ .mobile-bottom-nav button .nav-icon{font-size:22px;line-height:1.1}
+ .mobile-bottom-nav button .nav-label{font-size:10px;font-weight:700;white-space:nowrap}
+ .mobile-bottom-nav button[aria-current="page"]{background:#eff8df;color:#26331e}
+ .mobile-bottom-nav button:focus-visible{outline:3px solid #9be72b;outline-offset:2px}
+}
+
 </style></head>
 <body><div class="app">
 <header class="top"><div class="brand"><div class="logo">✦</div><div><h1>ちいはやクリッカー☆</h1><small>きみのクリックで、世界を育てよう。</small></div></div><div><span class="save" id="saveState">● 保存準備中</span><button class="account-trigger" type="button" id="accountOpenBtn">👤 アカウント</button></div></header>
@@ -482,7 +495,14 @@ body { overflow:hidden; }
  </section>
 </div>
 <footer class="bottom"><span>この端末に自動保存されます。ログインするとクラウド保存も利用できます。</span><button class="reset" id="reset">セーブデータをリセット</button></footer>
-</div><div class="toast" id="toast"></div>
+</div>
+<nav class="mobile-bottom-nav" aria-label="メインナビゲーション">
+ <button type="button" data-mobile-nav="home" aria-current="page"><span class="nav-icon" aria-hidden="true">🏠</span><span class="nav-label">ホーム</span></button>
+ <button type="button" data-mobile-nav="friends"><span class="nav-icon" aria-hidden="true">👥</span><span class="nav-label">フレンド</span></button>
+ <button type="button" data-mobile-nav="chat"><span class="nav-icon" aria-hidden="true">💬</span><span class="nav-label">チャット</span></button>
+ <button type="button" data-mobile-nav="ranking"><span class="nav-icon" aria-hidden="true">🏆</span><span class="nav-label">ランキング</span></button>
+</nav>
+<div class="toast" id="toast"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const SUPABASE_URL='https://qlrjtfjzunmatoypbhgq.supabase.co';
@@ -1131,6 +1151,24 @@ function openFeaturePanel(name){
 function closeFeaturePanel(){const overlay=$('featureOverlay');if(overlay)overlay.hidden=true}
 document.addEventListener('click',e=>{const button=e.target.closest('[data-open-panel]');if(button){e.preventDefault();openFeaturePanel(button.dataset.openPanel)}});
 $('closeFeaturePanel').addEventListener('click',closeFeaturePanel);
+
+// スマホ下部ナビ：既存の各機能パネルをそのまま開く
+function setMobileNavActive(name){
+ document.querySelectorAll('[data-mobile-nav]').forEach(b=>{
+  if(b.dataset.mobileNav===name)b.setAttribute('aria-current','page');
+  else b.removeAttribute('aria-current');
+ });
+}
+document.querySelectorAll('[data-mobile-nav]').forEach(button=>button.addEventListener('click',()=>{
+ const name=button.dataset.mobileNav;
+ if(name==='home'){closeFeaturePanel();setMobileNavActive('home');window.scrollTo({top:0,behavior:'smooth'});return;}
+ openFeaturePanel(name);setMobileNavActive(name);
+}));
+const originalOpenFeaturePanel=openFeaturePanel;
+openFeaturePanel=function(name){originalOpenFeaturePanel(name);if(['friends','chat','ranking'].includes(name))setMobileNavActive(name);else setMobileNavActive('home')};
+const originalCloseFeaturePanel=closeFeaturePanel;
+closeFeaturePanel=function(){originalCloseFeaturePanel();setMobileNavActive('home')};
+
 $('featureOverlay').addEventListener('click',e=>{if(e.target===$('featureOverlay'))closeFeaturePanel()});
 document.querySelectorAll('[data-ranking-period]').forEach(b=>b.addEventListener('click',()=>loadRanking(b.dataset.rankingPeriod)));
 $('friendSearchBtn').addEventListener('click',searchFriendPlayers);
