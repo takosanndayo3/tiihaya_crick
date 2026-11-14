@@ -233,6 +233,7 @@ body { overflow:hidden; }
    <button type="button" class="feature-launch" data-open-panel="gems"><span>💎</span><b>ジェム</b><small>購入機能は準備中</small></button>
    <button type="button" class="feature-launch" data-open-panel="friends"><span>👥</span><b>フレンド</b><small>ID検索・申請・一覧</small></button>
    <button type="button" class="feature-launch" data-open-panel="chat"><span>💬</span><b>チャット</b><small>全体・フレンド</small></button>
+   <button type="button" class="feature-launch" data-open-panel="ranking"><span>🏆</span><b>ランキング</b><small>累計・週間・月間</small></button>
   </section>
  </aside>
 </main>
@@ -295,6 +296,17 @@ body { overflow:hidden; }
      </div>
      <div id="chatBlockList" class="friend-note"></div>
     </div>
+   </section>
+   <section data-feature-content="ranking" hidden>
+    <p class="friend-note">ログインプレイヤーの獲得コインランキングです。週間・月間はこの機能を有効にした後の獲得記録から集計します。</p>
+    <div class="feature-subtabs" role="group" aria-label="ランキング期間">
+     <button type="button" class="tab active" data-ranking-period="all">🏆 累計</button>
+     <button type="button" class="tab" data-ranking-period="week">📅 週間</button>
+     <button type="button" class="tab" data-ranking-period="month">🗓️ 月間</button>
+    </div>
+    <div id="rankingStatus" class="friend-note" role="status">ランキングを読み込みます…</div>
+    <div id="rankingList" aria-live="polite"></div>
+    <p class="auth-status">※ 週間・月間の集計はSQL設定後の増加分が対象です。過去の期間の記録は復元されません。</p>
    </section>
    <section data-feature-content="gems" hidden>
     <div class="premium-note"><b>ジェムは購入で入手できます</b><p>ジェムはミッション・実績・ログインボーナスなどでは配布されません。購入機能は準備中です。このバージョンではまだ購入できません。</p><span class="premium-status">購入機能：準備中</span></div>
@@ -700,7 +712,7 @@ function buy(kind){
  state.coins-=plan.total;for(let i=0;i<plan.count;i++)apply();toast(`${kind==='click'?'クリック':kind==='auto'?'自動生産':kind==='multi'?'クリック倍率':'おまかせクリック'}を${plan.count}回強化！`);render();save();
 }
 $('hero').onclick=e=>{const n=addClick();const f=document.createElement('div');f.className='float';f.textContent='+'+fmt(n)+' 🪙';const r=$('stage').getBoundingClientRect();f.style.left=(e.clientX-r.left)+'px';f.style.top=(e.clientY-r.top)+'px';$('stage').appendChild(f);setTimeout(()=>f.remove(),850);$('hero').classList.remove('pop');void $('hero').offsetWidth;$('hero').classList.add('pop');render();save()};
-const featurePanelTitles={items:'🎁 アイテム',missions:'📜 ミッション・実績',themes:'🎨 テーマショップ',gems:'💎 ジェムショップ',friends:'👥 フレンド',chat:'💬 チャット'};
+const featurePanelTitles={items:'🎁 アイテム',missions:'📜 ミッション・実績',themes:'🎨 テーマショップ',gems:'💎 ジェムショップ',friends:'👥 フレンド',chat:'💬 チャット',ranking:'🏆 ランキング'};
 function escapeFriendText(value){
  return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
@@ -909,6 +921,33 @@ $('chatMessages').addEventListener('click',e=>{
  const del=e.target.closest('[data-chat-delete]');if(del)deleteChatMessage(del.dataset.chatDelete);
 });
 
+
+let activeRankingPeriod='all';
+function rankingStatus(message){$('rankingStatus').textContent=message}
+function renderRankingRows(rows){
+ const host=$('rankingList');
+ if(!rows?.length){host.innerHTML='<div class="empty">まだランキングデータがありません。ゲームを遊んで記録を作ろう！</div>';return}
+ host.innerHTML=rows.map((r,i)=>{
+  const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}位`;
+  return `<div class="friend-card"><div class="friend-avatar">${medal}</div><div class="friend-meta"><b>${escapeFriendText(r.player_name||'プレイヤー')}</b><small>@${escapeFriendText(r.player_id||'unknown')}</small></div><div class="friend-actions"><b>${fmt(Number(r.score)||0)} 🪙</b></div></div>`;
+ }).join('');
+}
+async function loadRanking(period=activeRankingPeriod){
+ activeRankingPeriod=period;
+ document.querySelectorAll('[data-ranking-period]').forEach(b=>b.classList.toggle('active',b.dataset.rankingPeriod===period));
+ if(!currentUser){rankingStatus('ランキングを見るにはログインしてください。');$('rankingList').innerHTML='<div class="empty">アカウントにログインするとランキングを確認できます。</div>';return}
+ rankingStatus('ランキングを読み込み中…');$('rankingList').innerHTML='';
+ try{
+  const {data,error}=await supabaseClient.rpc('get_coin_leaderboard',{p_period:period});
+  if(error)throw error;
+  renderRankingRows(data||[]);
+  rankingStatus(`${period==='all'?'累計':period==='week'?'週間':'月間'}ランキング・上位100人`);
+ }catch(e){
+  console.error('ランキング読み込み失敗',e);
+  rankingStatus('ランキングを読み込めませんでした。ランキング用SQLを実行したか確認してください。');
+ }
+}
+
 function openFeaturePanel(name){
  const overlay=$('featureOverlay');
  if(!overlay||!featurePanelTitles[name])return;
@@ -920,11 +959,13 @@ function openFeaturePanel(name){
  if(name==='themes')renderThemes();
  if(name==='friends')loadFriendPanel();
  if(name==='chat')openChatPanel();
+ if(name==='ranking')loadRanking('all');
 }
 function closeFeaturePanel(){const overlay=$('featureOverlay');if(overlay)overlay.hidden=true}
 document.addEventListener('click',e=>{const button=e.target.closest('[data-open-panel]');if(button){e.preventDefault();openFeaturePanel(button.dataset.openPanel)}});
 $('closeFeaturePanel').addEventListener('click',closeFeaturePanel);
 $('featureOverlay').addEventListener('click',e=>{if(e.target===$('featureOverlay'))closeFeaturePanel()});
+document.querySelectorAll('[data-ranking-period]').forEach(b=>b.addEventListener('click',()=>loadRanking(b.dataset.rankingPeriod)));
 $('friendSearchBtn').addEventListener('click',searchFriendPlayers);
 $('friendSearchInput').addEventListener('keydown',e=>{if(e.key==='Enter')searchFriendPlayers()});
 $('friendSearchResults').addEventListener('click',handleFriendAction);
