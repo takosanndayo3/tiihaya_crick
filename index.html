@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#f4ffd9"><title>きらめきクリック！</title>
+<meta name="theme-color" content="#f4ffd9"><title>ちいはやクリッカー☆</title>
 <style>
 :root{--bg:#f7f9ef;--panel:#fff;--ink:#20291d;--muted:#75806c;--line:#e8eddc;--lime:#9be72b;--lime2:#eaffbb;--yellow:#fff27a;--shadow:0 12px 32px #32440f12}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -10%,#edffc7 0,transparent 44%),var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;transition:background .45s ease,color .35s ease}
@@ -166,9 +166,176 @@ body { overflow:hidden; }
 .friend-actions{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}.friend-action.secondary{background:#edf3e4;color:#33412b}.friend-action.danger{background:#fff0ed;color:#9b4032}
 .friend-note{padding:10px 12px;border-radius:12px;background:#f7fbe9;color:var(--muted);font-size:11px;line-height:1.6;margin:8px 0}
 @media(max-width:520px){.friend-toolbar{align-items:stretch;flex-direction:column}.friend-actions{max-width:115px}}
+
+
+/* ちいはやクリッカー☆：スマートフォン向けレイアウト調整 */
+@media (max-width: 780px) {
+  html { -webkit-text-size-adjust: 100%; }
+  body { min-height: 100vh; min-height: 100dvh; }
+  .app {
+    width: 100%;
+    max-width: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: max(10px, env(safe-area-inset-top)) 12px
+             max(22px, env(safe-area-inset-bottom));
+  }
+  .top {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 9px;
+    margin-bottom: 12px;
+  }
+  .brand { min-width: 0; gap: 9px; }
+  .brand h1 {
+    font-size: clamp(16px, 4.5vw, 20px);
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+  .brand small { display: block; font-size: 10px; line-height: 1.4; }
+  .logo { width: 40px; height: 40px; flex: 0 0 40px; }
+  .top > div:last-child {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-left: auto;
+  }
+  .save { padding: 7px 9px; font-size: 10px; }
+  .account-trigger { min-height: 42px; padding: 9px 11px; }
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .stat {
+    min-width: 0;
+    padding: 10px 11px;
+    border-radius: 15px;
+  }
+  .stat strong {
+    font-size: clamp(18px, 5.5vw, 23px);
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+  .stat label, .stat span { font-size: 10px; line-height: 1.35; }
+  .main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    gap: 10px;
+  }
+  .stage {
+    width: 100%;
+    height: auto;
+    min-height: clamp(300px, 43svh, 430px);
+    max-height: none;
+    padding: 12px;
+    border-radius: 19px;
+  }
+  .hero {
+    width: min(76%, 300px);
+    height: auto;
+    max-height: 270px;
+    aspect-ratio: 1 / 1;
+    object-fit: contain;
+  }
+  .side {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    padding: 0 0 4px;
+    gap: 10px;
+  }
+  .panel {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    padding: 13px;
+    border-radius: 17px;
+  }
+  .panel-head { flex-wrap: wrap; }
+  button, .feature-launch, select, input, textarea {
+    touch-action: manipulation;
+  }
+  .panel button, .feature-launch, .feature-dialog button {
+    min-height: 42px;
+  }
+  .bottom {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 10px;
+    padding-bottom: 4px;
+    font-size: 10px;
+  }
+  .feature-overlay {
+    align-items: flex-end;
+    padding: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .feature-dialog {
+    width: 100%;
+    max-width: none;
+    max-height: 92dvh;
+    border-radius: 20px 20px 0 0;
+    border-bottom: 0;
+  }
+  .feature-dialog-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 12px 14px;
+  }
+  .feature-dialog-content {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 12px;
+  }
+  .feature-launch {
+    min-width: 0;
+    padding: 10px;
+  }
+  .friend-toolbar { gap: 8px; }
+  #chatInput { width: 100%; min-height: 76px; font-size: 16px; }
+  #chatMessages { height: min(48dvh, 380px); min-height: 180px; }
+  #rankingList, #chatMessages { overflow-wrap: anywhere; }
+}
+
+@media (max-width: 480px) {
+  .app { padding-left: 9px; padding-right: 9px; }
+  .top { align-items: flex-start; }
+  .top > div:last-child { width: 100%; justify-content: space-between; }
+  .brand { width: 100%; }
+  .stats { gap: 6px; }
+  .stat { padding: 9px; }
+  .stage { min-height: 310px; }
+  .hero { width: min(82%, 270px); }
+  .feature-dialog-head h2 { font-size: 16px; }
+  .feature-subtabs { display: flex; gap: 6px; }
+  .feature-subtabs .tab { flex: 1 1 0; min-width: 0; padding: 9px 5px; font-size: 12px; }
+  .friend-card { gap: 8px; padding: 9px; }
+  .friend-meta { min-width: 0; overflow-wrap: anywhere; }
+  .friend-actions { flex-wrap: wrap; }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  button, .feature-launch, .reset {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:active, .feature-launch:active {
+    transform: scale(.985);
+  }
+}
+
 </style></head>
 <body><div class="app">
-<header class="top"><div class="brand"><div class="logo">✦</div><div><h1>きらめきクリック！</h1><small>きみのクリックで、世界を育てよう。</small></div></div><div><span class="save" id="saveState">● 保存準備中</span><button class="account-trigger" type="button" id="accountOpenBtn">👤 アカウント</button></div></header>
+<header class="top"><div class="brand"><div class="logo">✦</div><div><h1>ちいはやクリッカー☆</h1><small>きみのクリックで、世界を育てよう。</small></div></div><div><span class="save" id="saveState">● 保存準備中</span><button class="account-trigger" type="button" id="accountOpenBtn">👤 アカウント</button></div></header>
 <section class="auth-modal" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
  <div class="auth-dialog">
   <button type="button" class="auth-close" id="authCloseBtn" aria-label="閉じる">×</button>
