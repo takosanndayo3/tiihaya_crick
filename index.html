@@ -232,6 +232,7 @@ body { overflow:hidden; }
    <button type="button" class="feature-launch" data-open-panel="themes"><span>🎨</span><b>テーマ</b><small>広場を着せ替え</small></button>
    <button type="button" class="feature-launch" data-open-panel="gems"><span>💎</span><b>ジェム</b><small>購入機能は準備中</small></button>
    <button type="button" class="feature-launch" data-open-panel="friends"><span>👥</span><b>フレンド</b><small>ID検索・申請・一覧</small></button>
+   <button type="button" class="feature-launch" data-open-panel="chat"><span>💬</span><b>チャット</b><small>全体・フレンド</small></button>
   </section>
  </aside>
 </main>
@@ -271,6 +272,28 @@ body { overflow:hidden; }
      <div id="friendOutgoing"></div>
      <h3 class="friend-section-title">💚 フレンド一覧</h3>
      <div id="friendList"></div>
+    </div>
+   </section>
+
+   <section data-feature-content="chat" hidden>
+    <p class="friend-note">全体チャット・フレンドとの個別チャットです。参加にはログインが必要です。個人情報やパスワードは投稿しないでください。</p>
+    <div id="chatSignedOut" class="empty">チャットに参加するにはアカウントにログインしてください。</div>
+    <div id="chatSignedIn" hidden>
+     <div class="feature-subtabs">
+      <button type="button" class="tab active" data-chat-mode="global">🌐 全体チャット</button>
+      <button type="button" class="tab" data-chat-mode="friends">💚 フレンド</button>
+     </div>
+     <div id="chatFriendPicker" hidden>
+      <label for="chatFriendSelect">会話するフレンド</label>
+      <select id="chatFriendSelect" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:10px"></select>
+     </div>
+     <div id="chatStatus" class="friend-note" role="status">チャットを読み込み中…</div>
+     <div id="chatMessages" aria-live="polite" style="height:min(48dvh,420px);min-height:220px;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(255,255,255,.65)"></div>
+     <div class="friend-toolbar" style="margin-top:10px">
+      <input id="chatInput" type="text" maxlength="500" placeholder="メッセージ（500文字以内）" aria-label="チャットメッセージ">
+      <button type="button" id="chatSend">送信</button>
+     </div>
+     <div id="chatBlockList" class="friend-note"></div>
     </div>
    </section>
    <section data-feature-content="gems" hidden>
@@ -473,7 +496,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  document.getElementById('signOutBtn').onclick=async()=>{
   clearTimeout(cloudWriteTimer);
   await supabaseClient.auth.signOut();
-  currentUser=null;cloudSyncEnabled=false;cloudPreparingUserId=null;
+  currentUser=null;cloudSyncEnabled=false;cloudPreparingUserId=null;if(chatChannel){supabaseClient.removeChannel(chatChannel);chatChannel=null;}
   updateAuthUI();setFriendPanelAuthState();authStatus('ログアウトしました。ゲームデータはこの端末に残っています。');
   $('saveState').textContent='● 端末に保存済み';toast('ログアウトしました');
  };
@@ -491,7 +514,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  supabaseClient.auth.onAuthStateChange((event,session)=>{
   if(event==='SIGNED_IN'&&session?.user&&currentUser?.id!==session.user.id)prepareCloudForUser(session.user);
   if(event==='SIGNED_OUT'){
-   currentUser=null;cloudSyncEnabled=false;cloudPreparingUserId=null;
+   currentUser=null;cloudSyncEnabled=false;cloudPreparingUserId=null;if(chatChannel){supabaseClient.removeChannel(chatChannel);chatChannel=null;}
    clearTimeout(cloudWriteTimer);updateAuthUI();
   }
  });
@@ -677,7 +700,7 @@ function buy(kind){
  state.coins-=plan.total;for(let i=0;i<plan.count;i++)apply();toast(`${kind==='click'?'クリック':kind==='auto'?'自動生産':kind==='multi'?'クリック倍率':'おまかせクリック'}を${plan.count}回強化！`);render();save();
 }
 $('hero').onclick=e=>{const n=addClick();const f=document.createElement('div');f.className='float';f.textContent='+'+fmt(n)+' 🪙';const r=$('stage').getBoundingClientRect();f.style.left=(e.clientX-r.left)+'px';f.style.top=(e.clientY-r.top)+'px';$('stage').appendChild(f);setTimeout(()=>f.remove(),850);$('hero').classList.remove('pop');void $('hero').offsetWidth;$('hero').classList.add('pop');render();save()};
-const featurePanelTitles={items:'🎁 アイテム',missions:'📜 ミッション・実績',themes:'🎨 テーマショップ',gems:'💎 ジェムショップ',friends:'👥 フレンド'};
+const featurePanelTitles={items:'🎁 アイテム',missions:'📜 ミッション・実績',themes:'🎨 テーマショップ',gems:'💎 ジェムショップ',friends:'👥 フレンド',chat:'💬 チャット'};
 function escapeFriendText(value){
  return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
@@ -763,6 +786,109 @@ function handleFriendAction(event){
  if(action==='remove')removeFriendRequest(button.dataset.requestId);
 }
 
+
+// v0.6 Chat: authenticated global chat and accepted-friend DMs
+let chatMode='global', chatChannel=null, chatFriends=[];
+function chatStatus(message){const el=$('chatStatus');if(el)el.textContent=message}
+function setChatAuth(){
+ const signed=!!currentUser;
+ $('chatSignedOut').hidden=signed;
+ $('chatSignedIn').hidden=!signed;
+}
+function escapeChatText(value){
+ return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+async function openChatPanel(){
+ setChatAuth();
+ if(!currentUser){chatStatus('ログインすると全体チャットに参加できます。');return}
+ await loadChatFriends();
+ await loadChatMessages();
+ subscribeChatRealtime();
+}
+async function loadChatFriends(){
+ try{
+  const uid=currentUser.id;
+  const {data:rows,error}=await supabaseClient.from('friend_requests').select('sender_id,recipient_id').eq('status','accepted').or(`sender_id.eq.${uid},recipient_id.eq.${uid}`);
+  if(error)throw error;
+  const ids=(rows||[]).map(r=>r.sender_id===uid?r.recipient_id:r.sender_id);
+  if(!ids.length){chatFriends=[];$('chatFriendSelect').innerHTML='<option value="">フレンドがいません</option>';return}
+  const {data:profiles,error:profileError}=await supabaseClient.from('player_profiles').select('user_id,player_name,player_id').in('user_id',ids);
+  if(profileError)throw profileError;
+  chatFriends=profiles||[];
+  $('chatFriendSelect').innerHTML=chatFriends.map(p=>`<option value="${p.user_id}">${escapeChatText(p.player_name)} (@${escapeChatText(p.player_id)})</option>`).join('');
+ }catch(e){console.error('チャット用フレンド取得失敗',e);chatStatus('フレンド一覧を取得できませんでした。')}
+}
+function currentChatQuery(){
+ if(chatMode==='global')return supabaseClient.from('chat_messages').select('id,sender_id,recipient_id,message,created_at').is('recipient_id',null).order('created_at',{ascending:true}).limit(100);
+ const friendId=$('chatFriendSelect').value;
+ if(!friendId)return null;
+ return supabaseClient.from('chat_messages').select('id,sender_id,recipient_id,message,created_at').or(`and(sender_id.eq.${currentUser.id},recipient_id.eq.${friendId}),and(sender_id.eq.${friendId},recipient_id.eq.${currentUser.id})`).order('created_at',{ascending:true}).limit(100);
+}
+async function loadChatMessages(){
+ if(!currentUser)return;
+ const box=$('chatMessages');box.innerHTML='<div class="empty">メッセージを読み込み中…</div>';
+ try{
+  const query=currentChatQuery();
+  if(!query){box.innerHTML='<div class="empty">会話するフレンドを選択してください。</div>';return}
+  const {data,error}=await query;if(error)throw error;
+  const ids=[...new Set((data||[]).map(m=>m.sender_id))];
+  let profiles=[];
+  if(ids.length){const result=await supabaseClient.from('player_profiles').select('user_id,player_name,player_id').in('user_id',ids);if(result.error)throw result.error;profiles=result.data||[]}
+  const byId=new Map(profiles.map(p=>[p.user_id,p]));
+  box.innerHTML=(data||[]).length?(data||[]).map(m=>{
+   const p=byId.get(m.sender_id)||{},mine=m.sender_id===currentUser.id;
+   const time=new Date(m.created_at).toLocaleString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+   return `<div style="padding:7px 5px;border-bottom:1px solid var(--line);text-align:${mine?'right':'left'}"><b>${escapeChatText(p.player_name||'プレイヤー')}</b> <small style="color:var(--muted)">@${escapeChatText(p.player_id||'')}</small><div style="white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0">${escapeChatText(m.message)}</div><small style="color:var(--muted)">${time}</small>${mine?'':` <button type="button" class="friend-action secondary" data-chat-report="${m.id}">通報</button> <button type="button" class="friend-action danger" data-chat-block="${m.sender_id}">ブロック</button>`}</div>`;
+  }).join(''):'<div class="empty">まだメッセージはありません。最初のメッセージを送ってみましょう！</div>';
+  box.scrollTop=box.scrollHeight;chatStatus(chatMode==='global'?'ログイン中のプレイヤーが参加できる全体チャットです。':'承認済みフレンドとの個別チャットです。');
+ }catch(e){console.error('チャット読み込み失敗',e);chatStatus('チャットを読み込めません。SQL設定とログイン状態を確認してください。')}
+}
+async function sendChatMessage(){
+ if(!currentUser){chatStatus('ログインしてください。');return}
+ const input=$('chatInput'),message=input.value.trim();
+ if(!message||message.length>500)return;
+ const row={sender_id:currentUser.id,recipient_id:chatMode==='global'?null:$('chatFriendSelect').value||null,message};
+ if(chatMode==='friends'&&!row.recipient_id){chatStatus('先にフレンドを選択してください。');return}
+ const button=$('chatSend');button.disabled=true;
+ try{
+  const {error}=await supabaseClient.from('chat_messages').insert(row);
+  if(error)throw error;
+  input.value='';await loadChatMessages();
+ }catch(e){console.error('メッセージ送信失敗',e);chatStatus(e.message?.includes('wait')?'連投防止のため、少し待ってから送信してください。':'送信できませんでした。フレンド状態やSQL設定を確認してください。')}
+ finally{button.disabled=false}
+}
+function subscribeChatRealtime(){
+ if(chatChannel){supabaseClient.removeChannel(chatChannel);chatChannel=null}
+ chatChannel=supabaseClient.channel('kirameki-chat-'+currentUser.id)
+  .on('postgres_changes',{event:'*',schema:'public',table:'chat_messages'},()=>loadChatMessages())
+  .subscribe();
+}
+async function reportChatMessage(messageId){
+ const reason=prompt('通報理由を入力してください（2～300文字）');if(!reason||reason.trim().length<2)return;
+ const {error}=await supabaseClient.from('chat_reports').insert({reporter_id:currentUser.id,message_id:Number(messageId),reason:reason.trim()});
+ if(error){console.error(error);chatStatus('通報できませんでした。');return}
+ toast('通報を受け付けました');
+}
+async function blockChatUser(userId){
+ if(!confirm('このプレイヤーをブロックしますか？'))return;
+ const {error}=await supabaseClient.from('chat_blocks').insert({blocker_id:currentUser.id,blocked_id:userId});
+ if(error&&error.code!=='23505'){console.error(error);chatStatus('ブロックできませんでした。');return}
+ toast('プレイヤーをブロックしました');await loadChatMessages();
+}
+document.querySelectorAll('[data-chat-mode]').forEach(btn=>btn.addEventListener('click',async()=>{
+ chatMode=btn.dataset.chatMode;
+ document.querySelectorAll('[data-chat-mode]').forEach(b=>b.classList.toggle('active',b===btn));
+ $('chatFriendPicker').hidden=chatMode!=='friends';
+ await loadChatMessages();
+}));
+$('chatSend').addEventListener('click',sendChatMessage);
+$('chatInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChatMessage()}});
+$('chatFriendSelect').addEventListener('change',loadChatMessages);
+$('chatMessages').addEventListener('click',e=>{
+ const report=e.target.closest('[data-chat-report]');if(report)reportChatMessage(report.dataset.chatReport);
+ const block=e.target.closest('[data-chat-block]');if(block)blockChatUser(block.dataset.chatBlock);
+});
+
 function openFeaturePanel(name){
  const overlay=$('featureOverlay');
  if(!overlay||!featurePanelTitles[name])return;
@@ -773,6 +899,7 @@ function openFeaturePanel(name){
  if(name==='items'){renderItemShop();renderInventory();}
  if(name==='themes')renderThemes();
  if(name==='friends')loadFriendPanel();
+ if(name==='chat')openChatPanel();
 }
 function closeFeaturePanel(){const overlay=$('featureOverlay');if(overlay)overlay.hidden=true}
 document.addEventListener('click',e=>{const button=e.target.closest('[data-open-panel]');if(button){e.preventDefault();openFeaturePanel(button.dataset.openPanel)}});
