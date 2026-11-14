@@ -345,6 +345,14 @@ body { overflow:hidden; }
  .mobile-bottom-nav button .nav-label{font-size:10px;font-weight:700;white-space:nowrap}
  .mobile-bottom-nav button[aria-current="page"]{background:#eff8df;color:#26331e}
  .mobile-bottom-nav button:focus-visible{outline:3px solid #9be72b;outline-offset:2px}
+ /* スマホでは各メニューを全画面ビューとして表示 */
+ .feature-overlay{position:fixed;inset:0;padding:0;align-items:stretch;justify-content:stretch;z-index:2000;background:var(--bg);backdrop-filter:none}
+ .feature-dialog{width:100%;height:100%;max-height:100dvh;border:0;border-radius:0;box-shadow:none}
+ .feature-dialog-head{position:sticky;top:0;z-index:2;padding:calc(12px + env(safe-area-inset-top)) 16px 12px}
+ .feature-dialog-content{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:14px 16px calc(94px + env(safe-area-inset-bottom))}
+ .mobile-bottom-nav{z-index:2200}
+ #upgradeShop{width:100%;margin:0}
+ body.mobile-panel-open{overflow:hidden}
 }
 
 </style></head>
@@ -901,7 +909,7 @@ function buy(kind){
  state.coins-=plan.total;for(let i=0;i<plan.count;i++)apply();toast(`${kind==='click'?'クリック':kind==='auto'?'自動生産':kind==='multi'?'クリック倍率':'おまかせクリック'}を${plan.count}回強化！`);render();save();
 }
 $('hero').onclick=e=>{const n=addClick();const f=document.createElement('div');f.className='float';f.textContent='+'+fmt(n)+' 🪙';const r=$('stage').getBoundingClientRect();f.style.left=(e.clientX-r.left)+'px';f.style.top=(e.clientY-r.top)+'px';$('stage').appendChild(f);setTimeout(()=>f.remove(),850);$('hero').classList.remove('pop');void $('hero').offsetWidth;$('hero').classList.add('pop');render();save()};
-const featurePanelTitles={items:'🎁 アイテム',missions:'📜 ミッション・実績',themes:'🎨 テーマショップ',gems:'💎 ジェムショップ',friends:'👥 フレンド',chat:'💬 チャット',ranking:'🏆 ランキング'};
+const featurePanelTitles={shop:'🛒 強化ショップ',items:'🎁 アイテム',missions:'📜 ミッション・実績',themes:'🎨 テーマショップ',gems:'💎 ジェムショップ',friends:'👥 フレンド',chat:'💬 チャット',ranking:'🏆 ランキング'};
 function escapeFriendText(value){
  return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
@@ -1154,23 +1162,59 @@ function closeFeaturePanel(){const overlay=$('featureOverlay');if(overlay)overla
 document.addEventListener('click',e=>{const button=e.target.closest('[data-open-panel]');if(button){e.preventDefault();openFeaturePanel(button.dataset.openPanel)}});
 $('closeFeaturePanel').addEventListener('click',closeFeaturePanel);
 
-// スマホ下部ナビ：既存の各機能パネルをそのまま開く
+// スマホ下部ナビ：ショップも含め、各画面を全画面で切り替える
+const mobileNavQuery=window.matchMedia('(max-width: 780px)');
+const shopSection=$('upgradeShop');
+const shopHomeParent=shopSection.parentNode;
+const shopPlaceholder=document.createComment('upgradeShop original position');
+shopHomeParent.insertBefore(shopPlaceholder,shopSection);
+shopSection.dataset.featureContent='shop';
+shopSection.hidden=true;
+const featureContent=document.querySelector('.feature-dialog-content');
+function placeShopForViewport(){
+ if(mobileNavQuery.matches){
+  shopSection.dataset.featureContent='shop';
+  if(shopSection.parentNode!==featureContent)featureContent.insertBefore(shopSection,featureContent.firstChild);
+  shopSection.hidden=true;
+ }else{
+  shopSection.removeAttribute('data-feature-content');
+  if(shopSection.parentNode!==shopHomeParent)shopHomeParent.insertBefore(shopSection,shopPlaceholder.nextSibling);
+  shopSection.hidden=false;
+ }
+}
+placeShopForViewport();
+if(mobileNavQuery.addEventListener)mobileNavQuery.addEventListener('change',placeShopForViewport);
+else mobileNavQuery.addListener(placeShopForViewport);
 function setMobileNavActive(name){
  document.querySelectorAll('[data-mobile-nav]').forEach(b=>{
   if(b.dataset.mobileNav===name)b.setAttribute('aria-current','page');
   else b.removeAttribute('aria-current');
  });
 }
+const baseOpenFeaturePanel=openFeaturePanel;
+openFeaturePanel=function(name){
+ if(name==='shop'&&!mobileNavQuery.matches){
+  shopSection.scrollIntoView({behavior:'smooth',block:'start'});
+  return;
+ }
+ if(name==='shop')shopSection.hidden=false;
+ baseOpenFeaturePanel(name);
+ if(!mobileNavQuery.matches&&name!=='shop')return;
+ document.body.classList.add('mobile-panel-open');
+ setMobileNavActive(name);
+};
+const baseCloseFeaturePanel=closeFeaturePanel;
+closeFeaturePanel=function(){
+ baseCloseFeaturePanel();
+ document.body.classList.remove('mobile-panel-open');
+ if(mobileNavQuery.matches)shopSection.hidden=true;
+ setMobileNavActive('home');
+};
 document.querySelectorAll('[data-mobile-nav]').forEach(button=>button.addEventListener('click',()=>{
  const name=button.dataset.mobileNav;
- if(name==='home'){closeFeaturePanel();setMobileNavActive('home');window.scrollTo({top:0,behavior:'smooth'});return;}
- openFeaturePanel(name);setMobileNavActive(name);
+ if(name==='home'){closeFeaturePanel();window.scrollTo({top:0,behavior:'smooth'});return;}
+ openFeaturePanel(name);
 }));
-const originalOpenFeaturePanel=openFeaturePanel;
-openFeaturePanel=function(name){originalOpenFeaturePanel(name);if(['friends','chat','ranking'].includes(name))setMobileNavActive(name);else setMobileNavActive('home')};
-const originalCloseFeaturePanel=closeFeaturePanel;
-closeFeaturePanel=function(){originalCloseFeaturePanel();setMobileNavActive('home')};
-
 $('featureOverlay').addEventListener('click',e=>{if(e.target===$('featureOverlay'))closeFeaturePanel()});
 document.querySelectorAll('[data-ranking-period]').forEach(b=>b.addEventListener('click',()=>loadRanking(b.dataset.rankingPeriod)));
 $('friendSearchBtn').addEventListener('click',searchFriendPlayers);
