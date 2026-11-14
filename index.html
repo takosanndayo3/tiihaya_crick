@@ -123,6 +123,32 @@ body { overflow:hidden; }
 .auth-panel{display:none}
 .auth-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.auth-row input{min-width:180px;flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:13px;background:#fff;color:#20291d}.auth-row button{border:0;border-radius:10px;padding:10px 13px;background:#26331e;color:#fff;font-size:12px}.auth-row button.secondary{background:#edf3e4;color:#33412b}.auth-status{font-size:12px;color:var(--muted);margin:0 0 9px;line-height:1.6}.auth-status strong{color:var(--ink)}
 @media(max-width:650px){.auth-row input{min-width:100%;}}
+
+/* v0.4: efficiency upgrades stay beside the clicker; other features open as panels */
+.feature-launcher{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.feature-launch{display:grid;grid-template-columns:34px 1fr;grid-template-rows:auto auto;align-items:center;text-align:left;column-gap:8px;padding:12px;border:1px solid var(--line);border-radius:15px;background:#fff;box-shadow:var(--shadow);color:var(--ink);cursor:pointer}
+.feature-launch>span{grid-row:1/3;font-size:24px;width:34px;height:34px;display:grid;place-items:center;background:#f3f8e9;border-radius:11px}
+.feature-launch b{font-size:13px}
+.feature-launch small{font-size:10px;color:var(--muted);margin-top:2px}
+.feature-launch:hover{border-color:#b9df75;background:#fbfff3}
+.feature-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:18px;background:#18201480;backdrop-filter:blur(5px)}
+.feature-overlay[hidden],[data-feature-content][hidden]{display:none!important}
+.feature-dialog{width:min(640px,100%);max-height:min(84dvh,760px);display:flex;flex-direction:column;overflow:hidden;background:var(--bg);border:1px solid var(--line);border-radius:22px;box-shadow:0 24px 80px #10180f55}
+.feature-dialog-head{flex:none;display:flex;align-items:center;justify-content:space-between;padding:16px 18px;background:#fff;border-bottom:1px solid var(--line)}
+.feature-dialog-head h2{font-size:17px;margin:0}
+.feature-close{width:36px;height:36px;border:0;border-radius:11px;background:#f0f4e9;color:var(--ink);font-size:17px;cursor:pointer}
+.feature-dialog-content{overflow-y:auto;overscroll-behavior:contain;padding:14px}
+.feature-dialog-content .theme-list{padding:10px 0}
+.feature-dialog-content .premium-note{margin-top:4px}
+.feature-dialog-content .item-shop-note{margin:0 0 10px;padding:10px 12px;border-radius:12px;background:#f7fbe9;font-size:11px;color:var(--muted);line-height:1.6}
+.feature-dialog-content .feature-subtabs{margin-top:14px}
+@media(max-width:720px){
+ .feature-overlay{padding:10px}
+ .feature-dialog{max-height:88dvh;border-radius:18px}
+ .feature-dialog-head{padding:13px 15px}
+ .feature-dialog-content{padding:11px}
+ .feature-launch{padding:10px}
+}
 </style></head>
 <body><div class="app">
 <header class="top"><div class="brand"><div class="logo">✦</div><div><h1>きらめきクリック！</h1><small>きみのクリックで、世界を育てよう。</small></div></div><div><span class="save" id="saveState">● 保存準備中</span><button class="account-trigger" type="button" id="accountOpenBtn">👤 アカウント</button></div></header>
@@ -158,7 +184,8 @@ body { overflow:hidden; }
  <section class="stage" id="stage"><div class="orb one"></div><div class="orb two"></div><div class="scene-label">🌱 きらめき広場</div><div class="click-note" id="clickNote">キャラクターをタップしてコインを集めよう！</div>
  <button class="hero" id="hero" aria-label="キャラクターをクリックしてコインを獲得"><img id="heroImg" style="pointer-events:none" alt="黄色い髪と緑の瞳のキャラクター"></button><div class="tap-hint">タップ / クリックでコイン獲得</div></section>
  <aside class="side">
-  <section class="panel"><div class="panel-head"><h2>⚡ 強化ショップ</h2><span class="muted">コインで購入</span></div>
+  <section class="panel">
+   <div class="panel-head"><h2>⚡ 強化ショップ</h2><span class="muted">コインで購入</span></div>
    <div class="buy-mode" role="group" aria-label="購入数"><button type="button" data-buy-mode="1" class="active" aria-pressed="true">1回</button><button type="button" data-buy-mode="10" aria-pressed="false">10回</button><button type="button" data-buy-mode="max" aria-pressed="false">最大</button></div>
    <p class="shop-help" id="shopHelp">次の強化を1回購入します。購入数はいつでも変更できます。</p>
    <div class="upgrade"><div class="uicon">👆</div><div class="uinfo"><b>クリック強化</b><small id="clickDesc">現在 +1 / クリック</small></div><button class="buy" id="buyClick">25 🪙</button></div>
@@ -166,12 +193,40 @@ body { overflow:hidden; }
    <div class="upgrade"><div class="uicon">✨</div><div class="uinfo"><b>クリック倍率</b><small id="multiDesc">現在 ×1</small></div><button class="buy" id="buyMulti">500 🪙</button></div>
    <div class="upgrade"><div class="uicon">🤖</div><div class="uinfo"><b>おまかせクリック</b><small id="botDesc">現在 0 回 / 秒</small></div><button class="buy" id="buyBot">1,000 🪙</button></div>
   </section>
-  <section class="panel"><div class="panel-head"><h2>🎨 テーマショップ</h2><span class="muted">コイン／ジェムで購入</span></div><p class="shop-help" style="padding:8px 12px 0;margin:0">広場の背景を着せ替えできます。コインまたはジェムで購入でき、購入後は何度でも変更できます。</p><div class="theme-list" id="themeList"></div></section>
-  <section class="panel"><div class="panel-head"><h2>🎁 アイテムショップ</h2><span class="muted">コインで購入</span></div><p class="item-shop-note">アイテムは使うと一定時間だけ効果が続きます。同じ効果の使用中に再使用すると、残り時間に追加されます。</p><div id="itemShop"></div></section>
-  <section class="panel"><div class="panel-head"><h2>💎 ジェムショップ</h2><span class="muted">課金専用</span></div><div class="premium-note"><b>ジェムは購入で入手できます</b><p>ジェムはミッション・実績・ログインボーナスなどでは配布されません。購入機能は準備中です。このバージョンではまだ購入できません。</p><span class="premium-status">購入機能：準備中</span></div></section>
-  <section class="panel"><div class="tabs"><button class="tab active" data-tab="missions">ミッション</button><button class="tab" data-tab="achievements">実績</button><button class="tab" data-tab="records">記録</button><button class="tab" data-tab="items">アイテム</button></div><div class="tab-content" id="tabContent"></div></section>
+  <section class="feature-launcher" aria-label="ゲームメニュー">
+   <button type="button" class="feature-launch" data-open-panel="items"><span>🎁</span><b>アイテム</b><small>購入・使用</small></button>
+   <button type="button" class="feature-launch" data-open-panel="missions"><span>📜</span><b>ミッション</b><small>実績・記録も確認</small></button>
+   <button type="button" class="feature-launch" data-open-panel="themes"><span>🎨</span><b>テーマ</b><small>広場を着せ替え</small></button>
+   <button type="button" class="feature-launch" data-open-panel="gems"><span>💎</span><b>ジェム</b><small>購入機能は準備中</small></button>
+  </section>
  </aside>
 </main>
+<div class="feature-overlay" id="featureOverlay" hidden>
+ <section class="feature-dialog" role="dialog" aria-modal="true" aria-labelledby="featurePanelTitle">
+  <header class="feature-dialog-head">
+   <h2 id="featurePanelTitle">ゲームメニュー</h2>
+   <button type="button" class="feature-close" id="closeFeaturePanel" aria-label="パネルを閉じる">✕</button>
+  </header>
+  <div class="feature-dialog-content">
+   <section data-feature-content="items" hidden>
+    <p class="item-shop-note">アイテムは使うと一定時間だけ効果が続きます。同じ効果の使用中に再使用すると、残り時間に追加されます。</p>
+    <div id="itemShop"></div>
+    <p class="shop-help">購入したアイテムは「ミッション・実績」パネル内の「所持アイテム」タブから使用できます。</p>
+   </section>
+   <section data-feature-content="missions" hidden>
+    <div class="tabs"><button class="tab active" data-tab="missions">ミッション</button><button class="tab" data-tab="achievements">実績</button><button class="tab" data-tab="records">記録</button><button class="tab" data-tab="items">所持アイテム</button></div>
+    <div class="tab-content" id="tabContent"></div>
+   </section>
+   <section data-feature-content="themes" hidden>
+    <p class="shop-help">広場の背景を着せ替えできます。コインまたはジェムで購入でき、購入後は何度でも変更できます。</p>
+    <div class="theme-list" id="themeList"></div>
+   </section>
+   <section data-feature-content="gems" hidden>
+    <div class="premium-note"><b>ジェムは購入で入手できます</b><p>ジェムはミッション・実績・ログインボーナスなどでは配布されません。購入機能は準備中です。このバージョンではまだ購入できません。</p><span class="premium-status">購入機能：準備中</span></div>
+   </section>
+  </div>
+ </section>
+</div>
 <footer class="bottom"><span>この端末に自動保存されます。ログインするとクラウド保存も利用できます。</span><button class="reset" id="reset">セーブデータをリセット</button></footer>
 </div><div class="toast" id="toast"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -475,6 +530,19 @@ function buy(kind){
  state.coins-=plan.total;for(let i=0;i<plan.count;i++)apply();toast(`${kind==='click'?'クリック':kind==='auto'?'自動生産':kind==='multi'?'クリック倍率':'おまかせクリック'}を${plan.count}回強化！`);render();save();
 }
 $('hero').onclick=e=>{const n=addClick();const f=document.createElement('div');f.className='float';f.textContent='+'+fmt(n)+' 🪙';const r=$('stage').getBoundingClientRect();f.style.left=(e.clientX-r.left)+'px';f.style.top=(e.clientY-r.top)+'px';$('stage').appendChild(f);setTimeout(()=>f.remove(),850);$('hero').classList.remove('pop');void $('hero').offsetWidth;$('hero').classList.add('pop');render();save()};
+const featurePanelTitles={items:'🎁 アイテム',missions:'📜 ミッション・実績',themes:'🎨 テーマショップ',gems:'💎 ジェムショップ'};
+function openFeaturePanel(name){
+ const overlay=$('featureOverlay');if(!overlay||!featurePanelTitles[name])return;
+ document.querySelectorAll('[data-feature-content]').forEach(el=>el.hidden=el.dataset.featureContent!==name);
+ $('featurePanelTitle').textContent=featurePanelTitles[name];overlay.hidden=false;
+ if(name==='missions'){activeTab='missions';renderTab();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===activeTab))}
+ if(name==='items'){activeTab='items';renderTab()}
+}
+function closeFeaturePanel(){const overlay=$('featureOverlay');if(overlay)overlay.hidden=true}
+document.querySelectorAll('[data-open-panel]').forEach(button=>button.addEventListener('click',()=>openFeaturePanel(button.dataset.openPanel)));
+$('closeFeaturePanel').addEventListener('click',closeFeaturePanel);
+$('featureOverlay').addEventListener('click',e=>{if(e.target===$('featureOverlay'))closeFeaturePanel()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('featureOverlay').hidden)closeFeaturePanel()});
 $('buyClick').onclick=()=>buy('click');$('buyAuto').onclick=()=>buy('auto');$('buyMulti').onclick=()=>buy('multi');$('buyBot').onclick=()=>buy('bot');document.querySelectorAll('[data-buy-mode]').forEach(b=>b.onclick=()=>{buyMode=b.dataset.buyMode;render()});
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{activeTab=b.dataset.tab;render()});
  $('themeList').onclick=e=>{const button=e.target.closest('[data-theme-id]');if(button&&!button.disabled)chooseTheme(button.dataset.themeId,button.dataset.themeCurrency||'coins')};
