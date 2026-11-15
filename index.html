@@ -1300,7 +1300,14 @@ async function sendChatMessage(){
   const {error}=await supabaseClient.from('chat_messages').insert(row);
   if(error)throw error;
   input.value='';await loadChatMessages();
- }catch(e){console.error('メッセージ送信失敗',e);chatStatus(e.message?.includes('wait')?'連投防止のため、少し待ってから送信してください。':'送信できませんでした。フレンド状態やSQL設定を確認してください。')}
+ }catch(e){
+ console.error('メッセージ送信失敗',e);
+ chatStatus(
+  '送信エラー: ' +
+  (e.message || '原因不明') +
+  (e.code ? ' (コード: '+e.code+')' : '')
+ );
+}
  finally{button.disabled=false}
 }
 
