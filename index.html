@@ -124,6 +124,10 @@ body { overflow:hidden; }
 .notification-count{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 5px;border-radius:99px;background:#e34b58;color:#fff;font-size:10px;font-weight:800;display:grid;place-items:center;border:2px solid #fff}
 .notification-count[hidden]{display:none}
 .notification-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px}
+.notification-setting{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid var(--line);border-radius:13px;background:var(--panel);margin:10px 0}
+.notification-setting label{font-size:13px;font-weight:700}
+.notification-setting small{display:block;color:var(--muted);font-size:10px;font-weight:400;margin-top:3px}
+.notification-setting input{width:20px;height:20px;accent-color:#7fb92b;flex:none}
 .notification-toolbar button{border:0;border-radius:10px;padding:9px 12px;background:#26331e;color:#fff;font-size:12px}
 .notification-toolbar button.secondary{background:#edf3e4;color:#33412b}
 .notification-item{display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:13px;padding:12px;margin:8px 0;background:var(--panel);color:var(--ink);cursor:pointer}
@@ -462,8 +466,13 @@ body[data-theme='night'] .notification-item.unread{background:#303d68;border-col
   <div class="feature-dialog-content">
    <section data-feature-content="notifications" hidden>
     <p class="friend-note" id="notificationStatus">ログインすると通知を確認できます。</p>
+    <div class="notification-setting">
+     <div><label for="notificationsEnabled">通知を受け取る</label><small>オフにすると、新しいゲーム内通知が届かなくなります。</small></div>
+     <input type="checkbox" id="notificationsEnabled" checked aria-label="通知を受け取る">
+    </div>
     <div class="notification-toolbar">
      <button type="button" id="enableBrowserNotifications">🔔 ブラウザ通知を有効にする</button>
+     <button type="button" class="secondary" id="disableBrowserNotifications">ブラウザ通知をオフにする</button>
      <button type="button" class="secondary" id="markAllNotificationsRead">すべて既読にする</button>
     </div>
     <p class="friend-note" id="browserNotificationStatus" role="status">ブラウザ通知はオフです。</p>
@@ -950,13 +959,45 @@ $('hero').onclick=e=>{const n=addClick();const f=document.createElement('div');f
 // v0.7 Notifications: in-app notifications + optional browser notifications
 let notificationChannel=null;
 let notificationRows=[];
+let notificationsEnabled=true;
 const BROWSER_NOTIFICATION_KEY='kirameki_browser_notifications_enabled';
+async function loadNotificationPreference(){
+ if(!currentUser){notificationsEnabled=true;updateNotificationPreferenceUI();return}
+ try{
+  const {data,error}=await supabaseClient.from('notification_preferences').select('enabled').eq('user_id',currentUser.id).maybeSingle();
+  if(error)throw error;
+  notificationsEnabled=data?.enabled!==false;
+ }catch(e){console.error('通知設定の読み込み失敗',e);notificationsEnabled=true;}
+ updateNotificationPreferenceUI();
+}
+function updateNotificationPreferenceUI(){
+ const input=$('notificationsEnabled');if(input)input.checked=notificationsEnabled;
+ const browserButton=$('enableBrowserNotifications');if(browserButton)browserButton.disabled=!notificationsEnabled;
+ const disableButton=$('disableBrowserNotifications');if(disableButton)disableButton.disabled=!browserNotificationEnabled();
+ if(!notificationsEnabled){updateNotificationBadge(0);notificationStatus('通知はオフです。過去の通知は一覧から確認できます。')}
+ updateBrowserNotificationStatus();
+}
+async function setNotificationsEnabled(enabled){
+ if(!currentUser){toast('通知設定を変更するにはログインしてください');const input=$('notificationsEnabled');if(input)input.checked=notificationsEnabled;return}
+ const input=$('notificationsEnabled');if(input)input.disabled=true;
+ try{
+  const {error}=await supabaseClient.from('notification_preferences').upsert({user_id:currentUser.id,enabled,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+  if(error)throw error;
+  notificationsEnabled=enabled;
+  if(!enabled){stopNotificationRealtime();updateNotificationBadge(0);localStorage.removeItem(BROWSER_NOTIFICATION_KEY);}
+  else{await startNotificationsForUser()}
+  updateNotificationPreferenceUI();
+  if(enabled)await loadNotifications({quiet:true});
+  toast(enabled?'通知をオンにしました':'通知をオフにしました');
+ }catch(e){console.error('通知設定の保存失敗',e);toast('通知設定を保存できませんでした。SQL設定を確認してください。');if(input)input.checked=notificationsEnabled}
+ finally{if(input)input.disabled=false}
+}
 function notificationStatus(message){
  const el=$('notificationStatus');if(el)el.textContent=message;
 }
 function updateNotificationBadge(count){
  const badge=$('notificationUnreadBadge');if(!badge)return;
- const n=Math.max(0,Number(count)||0);
+ const n=notificationsEnabled?Math.max(0,Number(count)||0):0;
  badge.hidden=n===0;
  badge.textContent=n>99?'99+':String(n);
  badge.setAttribute('aria-label',`未読通知 ${n}件`);
@@ -996,7 +1037,7 @@ async function loadNotifications(options={}){
   notificationRows=data||[];
   updateNotificationBadge(notificationRows.filter(row=>!row.is_read).length);
   renderNotificationList(notificationRows);
-  notificationStatus(`通知 ${notificationRows.length}件・未読 ${notificationRows.filter(row=>!row.is_read).length}件`);
+  notificationStatus(notificationsEnabled?`通知 ${notificationRows.length}件・未読 ${notificationRows.filter(row=>!row.is_read).length}件`:'通知はオフです。過去の通知は一覧から確認できます。');
   updateBrowserNotificationStatus();
   return true;
  }catch(e){
@@ -1036,7 +1077,10 @@ function updateBrowserNotificationStatus(){
   button.disabled=true;return;
  }
  button.disabled=false;
- if(Notification.permission==='denied'){
+ if(!notificationsEnabled){
+  status.textContent='ゲーム内通知がオフのため、ブラウザ通知も停止しています。';
+  button.textContent='通知をオンにすると利用できます';button.disabled=true;
+ }else if(Notification.permission==='denied'){
   status.textContent='ブラウザ通知がブロックされています。ブラウザのサイト設定から許可してください。';
   button.textContent='ブラウザのサイト設定を確認';
  }else if(Notification.permission==='granted'&&browserNotificationEnabled()){
@@ -1051,6 +1095,7 @@ function updateBrowserNotificationStatus(){
  }
 }
 async function enableBrowserNotifications(){
+ if(!notificationsEnabled){toast('先に「通知を受け取る」をオンにしてください');return}
  if(!('Notification' in window)){updateBrowserNotificationStatus();return}
  if(Notification.permission==='denied'){updateBrowserNotificationStatus();return}
  try{
@@ -1065,8 +1110,13 @@ async function enableBrowserNotifications(){
  }catch(e){console.error('ブラウザ通知の許可取得失敗',e)}
  updateBrowserNotificationStatus();
 }
+function disableBrowserNotifications(){
+ localStorage.removeItem(BROWSER_NOTIFICATION_KEY);
+ updateBrowserNotificationStatus();updateNotificationPreferenceUI();
+ toast('ブラウザ通知をオフにしました');
+}
 function showBrowserNotification(row){
- if(!('Notification' in window)||Notification.permission!=='granted'||!browserNotificationEnabled())return;
+ if(!notificationsEnabled||!('Notification' in window)||Notification.permission!=='granted'||!browserNotificationEnabled())return;
  try{
   const notice=new Notification(row.title||'きらめきクリック！', {body:row.body||'新しい通知があります。',tag:`kirameki-notification-${row.id}`});
   notice.onclick=()=>{window.focus();openFeaturePanel('notifications');notice.close()};
@@ -1078,9 +1128,11 @@ function stopNotificationRealtime(){
 async function startNotificationsForUser(){
  if(!currentUser)return;
  const userId=currentUser.id;
+ await loadNotificationPreference();
  const loaded=await loadNotifications({quiet:true});
  if(!loaded||currentUser?.id!==userId)return;
  stopNotificationRealtime();
+ if(!notificationsEnabled){updateNotificationBadge(0);return;}
  notificationChannel=supabaseClient.channel(`kirameki-notifications-${userId}`)
   .on('postgres_changes',{event:'*',schema:'public',table:'notifications',filter:`user_id=eq.${userId}`},payload=>{
    if(payload.eventType==='INSERT')showBrowserNotification(payload.new);
@@ -1351,7 +1403,10 @@ $('notificationOpenBtn').addEventListener('click',()=>openFeaturePanel('notifica
 $('notificationList').addEventListener('click',handleNotificationClick);
 $('markAllNotificationsRead').addEventListener('click',markAllNotificationsRead);
 $('enableBrowserNotifications').addEventListener('click',enableBrowserNotifications);
+$('disableBrowserNotifications').addEventListener('click',disableBrowserNotifications);
+$('notificationsEnabled').addEventListener('change',e=>setNotificationsEnabled(e.target.checked));
 updateBrowserNotificationStatus();
+updateNotificationPreferenceUI();
 
 // スマホ下部ナビ：ショップも含め、各画面を全画面で切り替える
 const mobileNavQuery=window.matchMedia('(max-width: 780px)');
