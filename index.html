@@ -118,6 +118,26 @@ body { overflow:hidden; }
 }
 
 
+
+.top-actions{display:flex;align-items:center;gap:8px}
+.notification-trigger{position:relative;border:1px solid #dfe9ce;background:#fff;border-radius:999px;width:38px;height:38px;display:grid;place-items:center;font-size:17px;color:#26331e;cursor:pointer}
+.notification-count{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 5px;border-radius:99px;background:#e34b58;color:#fff;font-size:10px;font-weight:800;display:grid;place-items:center;border:2px solid #fff}
+.notification-count[hidden]{display:none}
+.notification-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px}
+.notification-toolbar button{border:0;border-radius:10px;padding:9px 12px;background:#26331e;color:#fff;font-size:12px}
+.notification-toolbar button.secondary{background:#edf3e4;color:#33412b}
+.notification-item{display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:13px;padding:12px;margin:8px 0;background:var(--panel);color:var(--ink);cursor:pointer}
+.notification-item.unread{border-color:#b8df75;background:#f8ffeb}
+.notification-item-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.notification-item-top b{font-size:13px}
+.notification-item-top time,.notification-item-state{font-size:10px;color:var(--muted)}
+.notification-item-body{display:block;margin-top:5px;font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+.notification-item-state{display:block;margin-top:7px}
+body[data-theme='night'] .notification-trigger{background:#343f70;color:#f3f5ff;border-color:#56639a}
+body[data-theme='night'] .notification-count{border-color:#343f70}
+body[data-theme='night'] .notification-item.unread{background:#303d68;border-color:#6574a8}
+@media(max-width:650px){.top-actions{gap:5px}.notification-trigger{width:34px;height:34px}.account-trigger{padding:8px 10px;font-size:11px;margin-left:0}}
+
 .account-trigger{border:0;border-radius:999px;padding:9px 14px;background:#26331e;color:#fff;font:inherit;font-size:12px;cursor:pointer;margin-left:8px}
 .auth-modal{position:fixed;inset:0;z-index:9999;background:rgba(15,24,13,.58);display:none;align-items:center;justify-content:center;padding:18px}.auth-modal.open{display:flex}.auth-dialog{width:min(100%,440px);max-height:90vh;overflow:auto;background:var(--panel,#fff);border:1px solid var(--line);border-radius:20px;padding:20px;box-shadow:0 20px 70px #0004}.auth-dialog h2{margin:0 0 8px;font-size:20px}.auth-dialog .auth-row{display:grid;grid-template-columns:1fr;margin:10px 0}.auth-dialog input{width:100%;box-sizing:border-box;padding:12px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff;color:#20291d}.auth-dialog button{border:0;border-radius:10px;padding:11px 14px;background:#26331e;color:#fff;font:inherit;cursor:pointer}.auth-dialog button.secondary{background:#edf3e4;color:#33412b}.auth-close{float:right;background:transparent!important;color:var(--ink)!important;font-size:22px!important;padding:0 6px!important}.auth-divider{text-align:center;color:var(--muted);font-size:12px;margin:10px}.auth-id{font-size:11px;word-break:break-all;color:var(--muted)}
 .auth-panel{display:none}
@@ -364,7 +384,7 @@ body { overflow:hidden; }
 }
 </style></head>
 <body><div class="app">
-<header class="top"><div class="brand"><div class="logo">✦</div><div><h1>ちいはやクリッカー☆</h1><small>きみのクリックで、世界を育てよう。</small></div></div><div><span class="save" id="saveState">● 保存準備中</span><button class="account-trigger" type="button" id="accountOpenBtn">👤 アカウント</button></div></header>
+<header class="top"><div class="brand"><div class="logo">✦</div><div><h1>ちいはやクリッカー☆</h1><small>きみのクリックで、世界を育てよう。</small></div></div><div class="top-actions"><span class="save" id="saveState">● 保存準備中</span><button class="notification-trigger" type="button" id="notificationOpenBtn" aria-label="通知を開く" title="通知">🔔<span class="notification-count" id="notificationUnreadBadge" hidden>0</span></button><button class="account-trigger" type="button" id="accountOpenBtn">👤 アカウント</button></div></header>
 <section class="auth-modal" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
  <div class="auth-dialog">
   <button type="button" class="auth-close" id="authCloseBtn" aria-label="閉じる">×</button>
@@ -440,6 +460,15 @@ body { overflow:hidden; }
    <button type="button" class="feature-close" id="closeFeaturePanel" aria-label="パネルを閉じる">✕</button>
   </header>
   <div class="feature-dialog-content">
+   <section data-feature-content="notifications" hidden>
+    <p class="friend-note" id="notificationStatus">ログインすると通知を確認できます。</p>
+    <div class="notification-toolbar">
+     <button type="button" id="enableBrowserNotifications">🔔 ブラウザ通知を有効にする</button>
+     <button type="button" class="secondary" id="markAllNotificationsRead">すべて既読にする</button>
+    </div>
+    <p class="friend-note" id="browserNotificationStatus" role="status">ブラウザ通知はオフです。</p>
+    <div id="notificationList" aria-live="polite"><div class="empty">通知はありません。</div></div>
+   </section>
    <section data-feature-content="items" hidden>
     <p class="item-shop-note">アイテムは使うと一定時間だけ効果が続きます。同じ効果の使用中に再使用すると、残り時間に追加されます。</p>
     <div id="itemShop"></div>
@@ -614,7 +643,7 @@ async function prepareCloudForUser(user){
  if(!user?.id)return;
  if(cloudPreparingUserId===user.id)return;
  cloudPreparingUserId=user.id;
- currentUser=user;cloudSyncEnabled=false;updateAuthUI();updateAuthProfileAfterLogin(user);
+ currentUser=user;cloudSyncEnabled=false;updateAuthUI();updateAuthProfileAfterLogin(user);startNotificationsForUser();
  try{
   const {data,error}=await supabaseClient.from('game_saves')
    .select('save_data').eq('user_id',user.id).maybeSingle();
@@ -713,7 +742,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  document.getElementById('signOutBtn').onclick=async()=>{
   clearTimeout(cloudWriteTimer);
   await supabaseClient.auth.signOut();
-  currentUser=null;cloudSyncEnabled=false;cloudPreparingUserId=null;if(chatChannel){supabaseClient.removeChannel(chatChannel);chatChannel=null;}
+  currentUser=null;cloudSyncEnabled=false;cloudPreparingUserId=null;if(chatChannel){supabaseClient.removeChannel(chatChannel);chatChannel=null;}stopNotificationRealtime();notificationRows=[];updateNotificationBadge(0);
   updateAuthUI();setFriendPanelAuthState();authStatus('ログアウトしました。ゲームデータはこの端末に残っています。');
   $('saveState').textContent='● 端末に保存済み';toast('ログアウトしました');
  };
@@ -731,7 +760,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  supabaseClient.auth.onAuthStateChange((event,session)=>{
   if(event==='SIGNED_IN'&&session?.user&&currentUser?.id!==session.user.id)prepareCloudForUser(session.user);
   if(event==='SIGNED_OUT'){
-   currentUser=null;cloudSyncEnabled=false;cloudPreparingUserId=null;if(chatChannel){supabaseClient.removeChannel(chatChannel);chatChannel=null;}
+   currentUser=null;cloudSyncEnabled=false;cloudPreparingUserId=null;if(chatChannel){supabaseClient.removeChannel(chatChannel);chatChannel=null;}stopNotificationRealtime();notificationRows=[];updateNotificationBadge(0);
    clearTimeout(cloudWriteTimer);updateAuthUI();
   }
  });
@@ -917,7 +946,155 @@ function buy(kind){
  state.coins-=plan.total;for(let i=0;i<plan.count;i++)apply();toast(`${kind==='click'?'クリック':kind==='auto'?'自動生産':kind==='multi'?'クリック倍率':'おまかせクリック'}を${plan.count}回強化！`);render();save();
 }
 $('hero').onclick=e=>{const n=addClick();const f=document.createElement('div');f.className='float';f.textContent='+'+fmt(n)+' 🪙';const r=$('stage').getBoundingClientRect();f.style.left=(e.clientX-r.left)+'px';f.style.top=(e.clientY-r.top)+'px';$('stage').appendChild(f);setTimeout(()=>f.remove(),850);$('hero').classList.remove('pop');void $('hero').offsetWidth;$('hero').classList.add('pop');render();save()};
-const featurePanelTitles={shop:'🛒 強化ショップ',items:'🎁 アイテム',missions:'📜 ミッション・実績',themes:'🎨 テーマショップ',gems:'💎 ジェムショップ',friends:'👥 フレンド',chat:'💬 チャット',ranking:'🏆 ランキング'};
+
+// v0.7 Notifications: in-app notifications + optional browser notifications
+let notificationChannel=null;
+let notificationRows=[];
+const BROWSER_NOTIFICATION_KEY='kirameki_browser_notifications_enabled';
+function notificationStatus(message){
+ const el=$('notificationStatus');if(el)el.textContent=message;
+}
+function updateNotificationBadge(count){
+ const badge=$('notificationUnreadBadge');if(!badge)return;
+ const n=Math.max(0,Number(count)||0);
+ badge.hidden=n===0;
+ badge.textContent=n>99?'99+':String(n);
+ badge.setAttribute('aria-label',`未読通知 ${n}件`);
+}
+function escapeNotificationText(value){
+ return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function renderNotificationList(rows){
+ const el=$('notificationList');if(!el)return;
+ if(!rows.length){el.innerHTML='<div class="empty">通知はまだありません。</div>';return}
+ el.innerHTML=rows.map(row=>{
+  const time=row.created_at?new Date(row.created_at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+  const target=['friends','chat','shop','market','events'].includes(row.target)?row.target:'notifications';
+  return `<button type="button" class="notification-item${row.is_read?'':' unread'}" data-notification-id="${escapeNotificationText(row.id)}" data-notification-target="${target}">
+   <span class="notification-item-top"><b>${escapeNotificationText(row.title)}</b><time>${escapeNotificationText(time)}</time></span>
+   <span class="notification-item-body">${escapeNotificationText(row.body)}</span>
+   <span class="notification-item-state">${row.is_read?'既読':'● 未読'}</span>
+  </button>`;
+ }).join('');
+}
+async function loadNotifications(options={}){
+ const quiet=!!options.quiet;
+ if(!currentUser){
+  notificationRows=[];updateNotificationBadge(0);
+  notificationStatus('通知を確認するにはアカウントにログインしてください。');
+  renderNotificationList([]);
+  return false;
+ }
+ if(!quiet)notificationStatus('通知を読み込み中…');
+ try{
+  const {data,error}=await supabaseClient.from('notifications')
+   .select('id,type,title,body,target,is_read,created_at')
+   .eq('user_id',currentUser.id)
+   .order('created_at',{ascending:false})
+   .limit(100);
+  if(error)throw error;
+  notificationRows=data||[];
+  updateNotificationBadge(notificationRows.filter(row=>!row.is_read).length);
+  renderNotificationList(notificationRows);
+  notificationStatus(`通知 ${notificationRows.length}件・未読 ${notificationRows.filter(row=>!row.is_read).length}件`);
+  updateBrowserNotificationStatus();
+  return true;
+ }catch(e){
+  console.error('通知の読み込み失敗',e);
+  notificationRows=[];updateNotificationBadge(0);
+  renderNotificationList([]);
+  const missing=e.code==='42P01'||e.code==='PGRST205';
+  notificationStatus(missing?'通知用テーブルがまだありません。付属のSQLファイルをSupabaseのSQL Editorで1回実行してください。':'通知を読み込めませんでした。Supabaseの通知テーブルとRLS設定を確認してください。');
+  return false;
+ }
+}
+async function markNotificationRead(id){
+ if(!currentUser||!id)return;
+ const {error}=await supabaseClient.from('notifications').update({is_read:true}).eq('id',id).eq('user_id',currentUser.id);
+ if(error){console.error('通知の既読更新失敗',error);notificationStatus('既読にできませんでした。通知テーブルのUPDATEポリシーを確認してください。');return false}
+ await loadNotifications({quiet:true});return true;
+}
+async function markAllNotificationsRead(){
+ if(!currentUser){notificationStatus('ログインしてください。');return}
+ const button=$('markAllNotificationsRead');button.disabled=true;
+ try{
+  const {error}=await supabaseClient.from('notifications').update({is_read:true}).eq('user_id',currentUser.id).eq('is_read',false);
+  if(error)throw error;
+  await loadNotifications({quiet:true});
+  toast('すべての通知を既読にしました');
+ }catch(e){console.error('通知一括既読失敗',e);notificationStatus('通知を既読にできませんでした。')}
+ finally{button.disabled=false}
+}
+function browserNotificationEnabled(){
+ return localStorage.getItem(BROWSER_NOTIFICATION_KEY)==='true';
+}
+function updateBrowserNotificationStatus(){
+ const status=$('browserNotificationStatus'),button=$('enableBrowserNotifications');
+ if(!status||!button)return;
+ if(!('Notification' in window)){
+  status.textContent='このブラウザはブラウザ通知に対応していません。ゲーム内通知は利用できます。';
+  button.disabled=true;return;
+ }
+ button.disabled=false;
+ if(Notification.permission==='denied'){
+  status.textContent='ブラウザ通知がブロックされています。ブラウザのサイト設定から許可してください。';
+  button.textContent='ブラウザのサイト設定を確認';
+ }else if(Notification.permission==='granted'&&browserNotificationEnabled()){
+  status.textContent='ブラウザ通知は有効です。新しい通知が届くとお知らせします。';
+  button.textContent='✓ ブラウザ通知は有効';
+ }else if(Notification.permission==='granted'){
+  status.textContent='通知の許可があります。下のボタンで表示を有効にできます。';
+  button.textContent='ブラウザ通知を有効にする';
+ }else{
+  status.textContent='ブラウザ通知はオフです。許可すると新しい通知を画面外でも受け取れます。';
+  button.textContent='🔔 ブラウザ通知を有効にする';
+ }
+}
+async function enableBrowserNotifications(){
+ if(!('Notification' in window)){updateBrowserNotificationStatus();return}
+ if(Notification.permission==='denied'){updateBrowserNotificationStatus();return}
+ try{
+  const permission=Notification.permission==='granted'?'granted':await Notification.requestPermission();
+  if(permission==='granted'){
+   localStorage.setItem(BROWSER_NOTIFICATION_KEY,'true');
+   toast('ブラウザ通知を有効にしました');
+  }else{
+   localStorage.removeItem(BROWSER_NOTIFICATION_KEY);
+   toast('ブラウザ通知は有効になりませんでした');
+  }
+ }catch(e){console.error('ブラウザ通知の許可取得失敗',e)}
+ updateBrowserNotificationStatus();
+}
+function showBrowserNotification(row){
+ if(!('Notification' in window)||Notification.permission!=='granted'||!browserNotificationEnabled())return;
+ try{
+  const notice=new Notification(row.title||'きらめきクリック！', {body:row.body||'新しい通知があります。',tag:`kirameki-notification-${row.id}`});
+  notice.onclick=()=>{window.focus();openFeaturePanel('notifications');notice.close()};
+ }catch(e){console.warn('ブラウザ通知を表示できませんでした',e)}
+}
+function stopNotificationRealtime(){
+ if(notificationChannel){supabaseClient.removeChannel(notificationChannel);notificationChannel=null}
+}
+async function startNotificationsForUser(){
+ if(!currentUser)return;
+ const userId=currentUser.id;
+ const loaded=await loadNotifications({quiet:true});
+ if(!loaded||currentUser?.id!==userId)return;
+ stopNotificationRealtime();
+ notificationChannel=supabaseClient.channel(`kirameki-notifications-${userId}`)
+  .on('postgres_changes',{event:'*',schema:'public',table:'notifications',filter:`user_id=eq.${userId}`},payload=>{
+   if(payload.eventType==='INSERT')showBrowserNotification(payload.new);
+   loadNotifications({quiet:true});
+  }).subscribe();
+}
+async function handleNotificationClick(event){
+ const button=event.target.closest('[data-notification-id]');if(!button)return;
+ const id=button.dataset.notificationId,target=button.dataset.notificationTarget;
+ if(button.classList.contains('unread'))await markNotificationRead(id);
+ if(target&&target!=='notifications')openFeaturePanel(target);
+}
+
+const featurePanelTitles={notifications:'🔔 通知',shop:'🛒 強化ショップ',items:'🎁 アイテム',missions:'📜 ミッション・実績',themes:'🎨 テーマショップ',gems:'💎 ジェムショップ',friends:'👥 フレンド',chat:'💬 チャット',ranking:'🏆 ランキング'};
 function escapeFriendText(value){
  return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
@@ -1159,6 +1336,7 @@ function openFeaturePanel(name){
  document.querySelectorAll('[data-feature-content]').forEach(el=>{el.hidden=el.dataset.featureContent!==name});
  $('featurePanelTitle').textContent=featurePanelTitles[name];
  overlay.hidden=false;
+ if(name==='notifications')loadNotifications();
  if(name==='missions'){activeTab='missions';renderTab();document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===activeTab));}
  if(name==='items'){renderItemShop();renderInventory();}
  if(name==='themes')renderThemes();
@@ -1169,6 +1347,11 @@ function openFeaturePanel(name){
 function closeFeaturePanel(){const overlay=$('featureOverlay');if(overlay)overlay.hidden=true}
 document.addEventListener('click',e=>{const button=e.target.closest('[data-open-panel]');if(button){e.preventDefault();openFeaturePanel(button.dataset.openPanel)}});
 $('closeFeaturePanel').addEventListener('click',closeFeaturePanel);
+$('notificationOpenBtn').addEventListener('click',()=>openFeaturePanel('notifications'));
+$('notificationList').addEventListener('click',handleNotificationClick);
+$('markAllNotificationsRead').addEventListener('click',markAllNotificationsRead);
+$('enableBrowserNotifications').addEventListener('click',enableBrowserNotifications);
+updateBrowserNotificationStatus();
 
 // スマホ下部ナビ：ショップも含め、各画面を全画面で切り替える
 const mobileNavQuery=window.matchMedia('(max-width: 780px)');
