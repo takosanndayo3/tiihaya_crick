@@ -610,7 +610,7 @@ const SUPABASE_URL='https://qlrjtfjzunmatoypbhgq.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_5BxZxURWy9XW02bR7eeD2w_3PpXM69d';
 const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 let currentUser=null,cloudSyncEnabled=false,cloudWriteTimer=null,authBusy=false;
-let cloudPreparingUserId=null,cloudSaveInFlight=false,cloudSaveQueued=false;
+let cloudPreparingUserId=null,cloudSaveInFlight=false,cloudSaveQueued=false,cloudBaselineSave=null;
 const authStatus=(message)=>{const el=document.getElementById('authStatus');if(el)el.textContent=message};
 let currentProfile=null;
 function updateAuthUI(){
@@ -664,13 +664,39 @@ async function uploadCloudSave(showMessage=false){
  if(cloudSaveInFlight){cloudSaveQueued=true;return false}
  cloudSaveInFlight=true;
  const userId=currentUser.id;
- const snapshot=JSON.parse(JSON.stringify(state));
+ let snapshot=JSON.parse(JSON.stringify(state));
  try{
+  // サーバー側の譲渡・交換・ショップ処理を、古い端末セーブで上書きしない。
+  const {data:remoteRow,error:readError}=await supabaseClient.from('game_saves').select('save_data').eq('user_id',userId).maybeSingle();
+  if(readError)throw readError;
+  if(remoteRow?.save_data&&cloudBaselineSave){
+   const remote=normalizeState(remoteRow.save_data);
+   const base=normalizeState(cloudBaselineSave);
+   const local=normalizeState(snapshot);
+   const itemIds=new Set([...Object.keys(base.items||{}),...Object.keys(local.items||{}),...Object.keys(remote.items||{})]);
+   const mergedItems={...remote.items};
+   for(const id of itemIds){
+    const delta=(Number(local.items?.[id])||0)-(Number(base.items?.[id])||0);
+    const value=Math.max(0,(Number(remote.items?.[id])||0)+delta);
+    if(value>0)mergedItems[id]=Math.floor(value);else delete mergedItems[id];
+   }
+   // コインも端末での増減分だけをサーバー残高へ反映する。
+   const coinDelta=(Number(local.coins)||0)-(Number(base.coins)||0);
+   snapshot.items=mergedItems;
+   snapshot.coins=Math.max(0,(Number(remote.coins)||0)+coinDelta);
+   state.items={...mergedItems};state.coins=snapshot.coins;
+  }else if(remoteRow?.save_data&&!cloudBaselineSave){
+   // 同期基準がない場合はサーバー値を優先し、古い端末値による消失を防ぐ。
+   const remote=normalizeState(remoteRow.save_data);
+   snapshot.items={...remote.items};snapshot.coins=remote.coins;
+   state.items={...remote.items};state.coins=remote.coins;
+  }
   const {error}=await supabaseClient.from('game_saves').upsert(
    {user_id:userId,save_data:snapshot,updated_at:new Date().toISOString()},
    {onConflict:'user_id'}
   );
   if(error)throw error;
+  cloudBaselineSave=JSON.parse(JSON.stringify(snapshot));
   if(currentUser?.id===userId){
    $('saveState').textContent='● クラウド保存済み';
    authStatus('ログイン中・クラウド自動同期中');
@@ -707,6 +733,7 @@ async function prepareCloudForUser(user){
    // クラウドを正として復元。置き換え前の端末データはバックアップする。
    try{localStorage.setItem(KEY+'_precloud_backup_'+Date.now(),JSON.stringify(state))}catch(e){console.warn('端末データのバックアップに失敗しました',e)}
    state=normalizeState(data.save_data);
+   cloudBaselineSave=JSON.parse(JSON.stringify(state));
    state.lastSave=Date.now();
    localStorage.setItem(KEY,JSON.stringify(state));
    render();
@@ -718,6 +745,7 @@ async function prepareCloudForUser(user){
   }else{
    // クラウドにまだデータがない場合は、この端末のデータを初回保存する。
    cloudSyncEnabled=true;
+   cloudBaselineSave=JSON.parse(JSON.stringify(state));
    authStatus('クラウドにデータがないため、この端末のセーブデータを初回保存します。');
    await uploadCloudSave(false);
   }
@@ -796,7 +824,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  document.getElementById('signOutBtn').onclick=async()=>{
   clearTimeout(cloudWriteTimer);
   await supabaseClient.auth.signOut();
-  currentUser=null;cloudSyncEnabled=false;cloudPreparingUserId=null;if(chatChannel){supabaseClient.removeChannel(chatChannel);chatChannel=null;}stopNotificationRealtime();notificationRows=[];updateNotificationBadge(0);
+  currentUser=null;cloudSyncEnabled=false;cloudPreparingUserId=null;cloudBaselineSave=null;if(chatChannel){supabaseClient.removeChannel(chatChannel);chatChannel=null;}stopNotificationRealtime();notificationRows=[];updateNotificationBadge(0);
   updateAuthUI();setFriendPanelAuthState();authStatus('ログアウトしました。ゲームデータはこの端末に残っています。');
   $('saveState').textContent='● 端末に保存済み';toast('ログアウトしました');
  };
@@ -814,7 +842,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  supabaseClient.auth.onAuthStateChange((event,session)=>{
   if(event==='SIGNED_IN'&&session?.user&&currentUser?.id!==session.user.id)prepareCloudForUser(session.user);
   if(event==='SIGNED_OUT'){
-   currentUser=null;cloudSyncEnabled=false;cloudPreparingUserId=null;if(chatChannel){supabaseClient.removeChannel(chatChannel);chatChannel=null;}stopNotificationRealtime();notificationRows=[];updateNotificationBadge(0);
+   currentUser=null;cloudSyncEnabled=false;cloudPreparingUserId=null;cloudBaselineSave=null;if(chatChannel){supabaseClient.removeChannel(chatChannel);chatChannel=null;}stopNotificationRealtime();notificationRows=[];updateNotificationBadge(0);
    clearTimeout(cloudWriteTimer);updateAuthUI();
   }
  });
@@ -999,7 +1027,7 @@ async function respondTrade(id,accept){
  tradeStatus(accept?'取引が成立しました！':'取引を拒否しました。');await refreshAfterTrade();await loadTradePanel();
 }
 async function refreshAfterTrade(){
- try{const {data,error}=await supabaseClient.from('game_saves').select('save_data').eq('user_id',currentUser.id).single();if(error)throw error;if(data?.save_data){state=normalizeState(data.save_data);localStorage.setItem(KEY,JSON.stringify(state));render();}}catch(e){console.warn('取引後のセーブ再読込に失敗',e)}
+ try{const {data,error}=await supabaseClient.from('game_saves').select('save_data').eq('user_id',currentUser.id).single();if(error)throw error;if(data?.save_data){state=normalizeState(data.save_data);cloudBaselineSave=JSON.parse(JSON.stringify(state));localStorage.setItem(KEY,JSON.stringify(state));render();initTradeControls();}}catch(e){console.warn('取引後のセーブ再読込に失敗',e)}
 }
 async function loadMarketPanel(){
  if(!currentUser){marketStatus('ユーザーショップを利用するにはログインしてください。');$('marketListings').innerHTML='<div class="empty">ログイン後に出品商品を表示します。</div>';$('myMarketListings').innerHTML='';return}
