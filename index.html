@@ -496,6 +496,30 @@ body[data-theme='night'] .notification-item.unread{background:#303d68;border-col
      <h3>🎒 所持アイテム</h3>
      <div id="itemInventory"></div>
     </div>
+    <div class="inventory-section">
+     <h3>🤝 プレイヤー間取引</h3>
+     <p class="friend-note">プレイヤーIDを指定して、アイテムを無料で譲渡したり、物々交換・コイン交換を申し込めます。利用にはログインが必要です。</p>
+     <div class="friend-toolbar"><input id="tradeRecipientId" maxlength="36" placeholder="相手のプレイヤーID" aria-label="取引相手のプレイヤーID"></div>
+     <div class="friend-toolbar"><select id="tradeOfferItem" aria-label="渡すアイテム"></select><input id="tradeOfferQty" type="number" min="1" max="999" value="1" aria-label="渡す個数"></div>
+     <div class="friend-toolbar"><select id="tradeKind" aria-label="取引方法"><option value="gift">無料で譲渡</option><option value="swap">物々交換</option><option value="coins">コインと交換</option></select></div>
+     <div id="tradeWantFields" hidden>
+      <div class="friend-toolbar"><select id="tradeWantItem" aria-label="希望するアイテム"></select><input id="tradeWantQty" type="number" min="1" max="999" value="1" aria-label="希望する個数"></div>
+      <div class="friend-toolbar"><input id="tradeWantCoins" type="number" min="0" max="1000000000" value="0" placeholder="希望コイン数（物々交換では0）" aria-label="希望コイン数"></div>
+     </div>
+     <button type="button" class="friend-action" id="sendTradeOffer">取引を申し込む</button>
+     <div id="tradeStatus" class="friend-note" role="status">ログインすると取引できます。</div>
+     <h3 class="friend-section-title">📨 届いた取引申請</h3><div id="incomingTrades"></div>
+    </div>
+    <div class="inventory-section">
+     <h3>🏪 ユーザーショップ</h3>
+     <p class="friend-note">出品期間は30日間。売却成立時に販売手数料5%を差し引き、残り95%を出品者が受け取ります。</p>
+     <div class="friend-toolbar"><select id="marketItem" aria-label="出品するアイテム"></select><input id="marketQty" type="number" min="1" max="999" value="1" aria-label="出品個数"></div>
+     <div class="friend-toolbar"><input id="marketPrice" type="number" min="1" max="1000000000" value="1000" placeholder="1個あたりの価格（コイン）" aria-label="1個あたりの価格"></div>
+     <button type="button" class="friend-action" id="createMarketListing">出品する</button>
+     <div id="marketStatus" class="friend-note" role="status">ログインすると出品・購入できます。</div>
+     <h3 class="friend-section-title">🛍️ 出品中の商品</h3><div id="marketListings"></div>
+     <h3 class="friend-section-title">📦 自分の出品</h3><div id="myMarketListings"></div>
+    </div>
    </section>
    <section data-feature-content="missions" hidden>
     <div class="tabs"><button class="tab active" data-tab="missions">ミッション</button><button class="tab" data-tab="achievements">実績</button><button class="tab" data-tab="records">記録</button></div>
@@ -928,6 +952,76 @@ function renderActiveBuffBanner(){
  el.hidden=false;
  el.innerHTML=`<span class="active-buffs-title">✨ アイテム効果 発動中！</span>${active.map(item=>`<span class="active-buff-chip">${item.icon} ${item.name}<span class="buff-time">${formatDuration(buffRemaining(item.id)/1000)}</span></span>`).join('')}`;
 }
+function fillItemSelect(id){
+ const el=$(id);if(!el)return;const current=el.value;
+ el.innerHTML=itemCatalog.map(i=>`<option value="${i.id}">${i.icon} ${i.name}（所持 ${fmt(state.items[i.id]||0)}）</option>`).join('');
+ if(itemCatalog.some(i=>i.id===current))el.value=current;
+}
+function initTradeControls(){
+ ['tradeOfferItem','tradeWantItem','marketItem'].forEach(fillItemSelect);
+ const kind=$('tradeKind');if(kind&&!kind.dataset.bound){kind.dataset.bound='1';kind.addEventListener('change',()=>{$('tradeWantFields').hidden=kind.value==='gift';$('tradeWantCoins').disabled=kind.value==='swap';if(kind.value==='swap')$('tradeWantCoins').value='0';});}
+}
+function tradeStatus(message){if($('tradeStatus'))$('tradeStatus').textContent=message;}
+function marketStatus(message){if($('marketStatus'))$('marketStatus').textContent=message;}
+async function loadTradePanel(){
+ if(!currentUser){tradeStatus('取引を利用するにはログインしてください。');$('incomingTrades').innerHTML='<div class="empty">ログイン後に取引申請が表示されます。</div>';return}
+ try{
+  const {data,error}=await supabaseClient.from('item_trade_offers').select('id,sender_id,recipient_id,offer_item_id,offer_quantity,want_item_id,want_quantity,want_coins,status,created_at').eq('recipient_id',currentUser.id).eq('status','pending').order('created_at',{ascending:false}).limit(50);
+  if(error)throw error;
+  const ids=[...new Set((data||[]).map(x=>x.sender_id))];let profiles=[];
+  if(ids.length){const r=await supabaseClient.from('player_profiles').select('user_id,player_name,player_id').in('user_id',ids);if(r.error)throw r.error;profiles=r.data||[];}
+  $('incomingTrades').innerHTML=(data||[]).map(t=>{const u=profiles.find(p=>p.user_id===t.sender_id);const a=itemCatalog.find(i=>i.id===t.offer_item_id),b=itemCatalog.find(i=>i.id===t.want_item_id);return `<div class="friend-card"><div class="friend-meta"><b>${u?.player_name||'プレイヤー'}（@${u?.player_id||'unknown'}）</b><small>${a?.name||t.offer_item_id} ×${t.offer_quantity} → ${t.want_coins?fmt(t.want_coins)+'コイン':(b?.name||t.want_item_id)+' ×'+t.want_quantity}</small></div><div class="friend-actions"><button class="friend-action" data-trade-accept="${t.id}">承認</button><button class="friend-action secondary" data-trade-decline="${t.id}">拒否</button></div></div>`}).join('')||'<div class="empty">届いている取引申請はありません。</div>';
+  $('incomingTrades').querySelectorAll('[data-trade-accept]').forEach(b=>b.onclick=()=>respondTrade(b.dataset.tradeAccept,true));
+  $('incomingTrades').querySelectorAll('[data-trade-decline]').forEach(b=>b.onclick=()=>respondTrade(b.dataset.tradeDecline,false));
+  tradeStatus('取引申請を確認しました。');
+ }catch(e){console.error(e);tradeStatus('取引情報を読み込めません。取引機能用SQLをSupabaseに設定してください。');}
+}
+async function sendTrade(){
+ if(!currentUser){tradeStatus('ログインしてください。');return}
+ const recipient=$('tradeRecipientId').value.trim().toLowerCase(),item=$('tradeOfferItem').value,qty=Number($('tradeOfferQty').value),kind=$('tradeKind').value,want=$('tradeWantItem').value,wqty=Number($('tradeWantQty').value),coins=Number($('tradeWantCoins').value);
+ if(!/^[a-z0-9_]{3,36}$/.test(recipient)){tradeStatus('相手のプレイヤーIDを正しく入力してください。');return}
+ if(!Number.isSafeInteger(qty)||qty<1||qty>999||qty>(state.items[item]||0)){tradeStatus('渡す個数または所持数を確認してください。');return}
+ if(kind==='gift'){
+  const {error}=await supabaseClient.rpc('gift_game_item',{p_recipient_player_id:recipient,p_item_id:item,p_quantity:qty});if(error){tradeStatus('譲渡できませんでした：'+error.message);return}tradeStatus('アイテムを譲渡しました！');
+ }else{
+  if(kind==='swap'&&(!Number.isSafeInteger(wqty)||wqty<1||wqty>999)){tradeStatus('希望する個数を確認してください。');return}
+  if(kind==='coins'&&(!Number.isSafeInteger(coins)||coins<1)){tradeStatus('希望コイン数を1以上で入力してください。');return}
+  if(kind==='swap'&&want===item&&wqty===qty){tradeStatus('同じアイテム・同じ個数の交換は申し込めません。');return}
+  const {error}=await supabaseClient.rpc('create_item_trade_offer',{p_recipient_player_id:recipient,p_offer_item_id:item,p_offer_quantity:qty,p_want_item_id:kind==='swap'?want:null,p_want_quantity:kind==='swap'?wqty:0,p_want_coins:kind==='coins'?coins:0});
+  if(error){tradeStatus('取引を申し込めませんでした：'+error.message);return}tradeStatus('取引を申し込みました。相手の承認を待っています。');
+ }
+ await refreshAfterTrade();await loadTradePanel();
+}
+async function respondTrade(id,accept){
+ if(!currentUser)return;
+ const {error}=await supabaseClient.rpc('respond_item_trade_offer',{p_offer_id:id,p_accept:accept});
+ if(error){tradeStatus('処理できませんでした：'+error.message);return}
+ tradeStatus(accept?'取引が成立しました！':'取引を拒否しました。');await refreshAfterTrade();await loadTradePanel();
+}
+async function refreshAfterTrade(){
+ try{const {data,error}=await supabaseClient.from('game_saves').select('save_data').eq('user_id',currentUser.id).single();if(error)throw error;if(data?.save_data){state=normalizeState(data.save_data);localStorage.setItem(KEY,JSON.stringify(state));render();}}catch(e){console.warn('取引後のセーブ再読込に失敗',e)}
+}
+async function loadMarketPanel(){
+ if(!currentUser){marketStatus('ユーザーショップを利用するにはログインしてください。');$('marketListings').innerHTML='<div class="empty">ログイン後に出品商品を表示します。</div>';$('myMarketListings').innerHTML='';return}
+ try{
+  const {data,error}=await supabaseClient.from('item_market_listings').select('id,seller_id,item_id,quantity,price_per_item,expires_at,status').eq('status','active').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}).limit(100);if(error)throw error;
+  const mine=(data||[]).filter(x=>x.seller_id===currentUser.id),others=(data||[]).filter(x=>x.seller_id!==currentUser.id);const ids=[...new Set((data||[]).map(x=>x.seller_id))];let profiles=[];
+  if(ids.length){const r=await supabaseClient.from('player_profiles').select('user_id,player_name,player_id').in('user_id',ids);if(r.error)throw r.error;profiles=r.data||[];}
+  const renderListing=(x,own)=>{const it=itemCatalog.find(i=>i.id===x.item_id),u=profiles.find(p=>p.user_id===x.seller_id);return `<div class="friend-card"><div class="friend-meta"><b>${it?.icon||'🎁'} ${it?.name||x.item_id} ×${x.quantity}</b><small>${own?'自分の出品':(u?.player_name||'プレイヤー')+'（@'+(u?.player_id||'unknown')+'）'} · ${fmt(x.price_per_item)}コイン/個 · 期限 ${new Date(x.expires_at).toLocaleDateString('ja-JP')}</small></div><div class="friend-actions">${own?`<button class="friend-action secondary" data-market-cancel="${x.id}">取り下げ</button>`:`<button class="friend-action" data-market-buy="${x.id}">購入</button>`}</div></div>`};
+  $('marketListings').innerHTML=others.map(x=>renderListing(x,false)).join('')||'<div class="empty">現在購入できる出品はありません。</div>';$('myMarketListings').innerHTML=mine.map(x=>renderListing(x,true)).join('')||'<div class="empty">自分の出品はありません。</div>';
+  $('marketListings').querySelectorAll('[data-market-buy]').forEach(b=>b.onclick=()=>buyMarketListing(b.dataset.marketBuy));$('myMarketListings').querySelectorAll('[data-market-cancel]').forEach(b=>b.onclick=()=>cancelMarketListing(b.dataset.marketCancel));marketStatus('販売手数料は売却価格の5%です。出品は30日で終了します。');
+ }catch(e){console.error(e);marketStatus('マーケットを読み込めません。マーケット機能用SQLをSupabaseに設定してください。')}
+}
+async function createMarketListing(){
+ if(!currentUser){marketStatus('ログインしてください。');return}
+ const item=$('marketItem').value,qty=Number($('marketQty').value),price=Number($('marketPrice').value);
+ if(!Number.isSafeInteger(qty)||qty<1||qty>999||qty>(state.items[item]||0)){marketStatus('出品個数が所持数を超えています。');return}
+ if(!Number.isSafeInteger(price)||price<1||price>1000000000){marketStatus('価格は1～1,000,000,000コインで入力してください。');return}
+ const {error}=await supabaseClient.rpc('create_item_market_listing',{p_item_id:item,p_quantity:qty,p_price_per_item:price});if(error){marketStatus('出品できませんでした：'+error.message);return}
+ marketStatus('出品しました！');await refreshAfterTrade();await loadMarketPanel();initTradeControls();
+}
+async function buyMarketListing(id){if(!currentUser)return;if(!confirm('この出品を購入しますか？販売手数料5%は出品者の売上から差し引かれます。'))return;const {error}=await supabaseClient.rpc('buy_item_market_listing',{p_listing_id:id,p_quantity:1});if(error){marketStatus('購入できませんでした：'+error.message);return}marketStatus('購入しました！');await refreshAfterTrade();await loadMarketPanel();}
+async function cancelMarketListing(id){if(!currentUser)return;if(!confirm('この出品を取り下げて、アイテムを返却しますか？'))return;const {error}=await supabaseClient.rpc('cancel_item_market_listing',{p_listing_id:id});if(error){marketStatus('取り下げできませんでした：'+error.message);return}marketStatus('出品を取り下げ、アイテムを返却しました。');await refreshAfterTrade();await loadMarketPanel();initTradeControls();}
 function renderThemes(){
  const el=$('themeList');if(!el)return;
  el.innerHTML=themes.map(t=>{
@@ -1418,7 +1512,7 @@ function openFeaturePanel(name){
  overlay.hidden=false;
  if(name==='notifications')loadNotifications();
  if(name==='missions'){activeTab='missions';renderTab();document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===activeTab));}
- if(name==='items'){renderItemShop();renderInventory();}
+ if(name==='items'){renderItemShop();renderInventory();initTradeControls();loadTradePanel();loadMarketPanel();}
  if(name==='themes')renderThemes();
  if(name==='friends')loadFriendPanel();
  if(name==='chat')openChatPanel();
@@ -1502,6 +1596,7 @@ $('buyClick').onclick=()=>buy('click');$('buyAuto').onclick=()=>buy('auto');$('b
 document.querySelectorAll('[data-feature-content="missions"] [data-tab]').forEach(b=>b.onclick=()=>{activeTab=b.dataset.tab;renderTab();document.querySelectorAll('[data-feature-content="missions"] [data-tab]').forEach(x=>x.classList.toggle('active',x===b));save()});
  $('themeList').onclick=e=>{const button=e.target.closest('[data-theme-id]');if(button&&!button.disabled)chooseTheme(button.dataset.themeId,button.dataset.themeCurrency||'coins')};
  $('itemShop').onclick=e=>{const button=e.target.closest('[data-item-buy]');if(button&&!button.disabled)buyItem(button.dataset.itemBuy)};
+ $('sendTradeOffer').addEventListener('click',sendTrade);$('createMarketListing').addEventListener('click',createMarketListing);
 function closeResetConfirm(){ $('resetConfirm').hidden=true; $('reset').focus({preventScroll:true}); }
 $('reset').addEventListener('click',()=>{ $('resetConfirm').hidden=false; $('resetCancel').focus({preventScroll:true}); });
 $('resetCancel').addEventListener('click',closeResetConfirm);
